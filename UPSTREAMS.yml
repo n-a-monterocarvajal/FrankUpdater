@@ -1,0 +1,117 @@
+schema_version: 1
+
+components:
+  inventory.installed-apps:
+    upstream: https://github.com/rumboalla/apkupdater
+    integration: planned-adapted
+    license: GPL-3.0-only
+    symbols:
+      - AppsRepository
+    last_seen_commit: null
+    last_reviewed_commit: null
+    last_integrated_commit: null
+  device.profile:
+    upstream: https://github.com/AuroraOSS/AuroraStore
+    integration: planned-adapted
+    license: GPL-3.0-only
+    symbols:
+      - NativeDeviceInfoProvider
+    last_seen_commit: null
+    last_reviewed_commit: null
+    last_integrated_commit: null
+
+  compatibility.base:
+    upstream: https://github.com/f-droid/fdroidclient
+    integration: planned-adapted
+    license: GPL-3.0-only
+    symbols:
+      - CompatibilityCheckerImpl
+      - CompatibilityCheckerUtils.minInstallableTargetSdk
+    last_seen_commit: null
+    last_reviewed_commit: null
+    last_integrated_commit: null
+
+  compatibility.targeting:
+    upstream: https://github.com/google/bundletool
+    integration: planned-ported
+    license: Apache-2.0
+    symbols:
+      - AbiMatcher
+      - MultiAbiMatcher
+      - ScreenDensityMatcher
+      - ScreenDensitySelector
+      - LanguageMatcher
+      - VariantMatcher
+    last_seen_commit: null
+    last_reviewed_commit: null
+    last_integrated_commit: null
+
+  update.selection:
+    upstream: https://github.com/f-droid/fdroidclient
+    integration: planned-adapted
+    license: GPL-3.0-only
+    symbols:
+      - UpdateChecker
+    last_seen_commit: null
+    last_reviewed_commit: null
+    last_integrated_commit: null
+
+  provider.play:
+    upstream: https://gitlab.com/AuroraOSS/gplayapi
+    integration: planned-dependency
+    license: GPL-3.0-only
+    symbols: []
+    last_seen_commit: null
+    last_reviewed_commit: null
+    last_integrated_commit: null
+
+  provider.apkmirror.scraper:
+    upstream: https://github.com/tanishqmanuja/apkmirror-downloader
+    integration: planned-ported
+    license: pending-file-verification
+    symbols:
+      - getVersions
+      - getVariants
+      - getFinalDownloadUrl
+    last_seen_commit: null
+    last_reviewed_commit: null
+    last_integrated_commit: null
+
+  provider.apkpure.history:
+    upstream: https://github.com/ImranR98/Obtainium
+    integration: planned-reference
+    license: GPL-3.0-only
+    symbols: []
+    last_seen_commit: null
+    last_reviewed_commit: null
+    last_integrated_commit: null
+
+  archive.reader:
+    upstream: https://github.com/MuntashirAkon/AppManager
+    integration: planned-adapted
+    license: GPL-3.0-or-later
+    symbols:
+      - ApkFile
+      - SplitApkChooser
+    last_seen_commit: null
+    last_reviewed_commit: null
+    last_integrated_commit: null
+
+  verification.signature:
+    upstream: https://github.com/MuntashirAkon/apksig-android
+    integration: planned-dependency
+    license: Apache-2.0
+    symbols: []
+    last_seen_commit: null
+    last_reviewed_commit: null
+    last_integrated_commit: null
+
+  installer.router:
+    upstream: https://github.com/Droid-ify/client
+    integration: planned-adapted
+    license: GPL-3.0-only
+    symbols:
+      - InstallManager
+    last_seen_commit: null
+    last_reviewed_commit: null
+    last_integrated_commit: null
