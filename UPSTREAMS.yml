@@ -25,30 +25,30 @@ components:
   compatibility.base:
     upstream: https://github.com/f-droid/fdroidclient
     ref: 707b8ece6e5eece0a27b80855172e12e624f9c71
-    integration: planned-adapted
+    integration: adapted
     license: GPL-3.0-only
     symbols:
       - CompatibilityCheckerImpl
       - CompatibilityCheckerUtils.minInstallableTargetSdk
     last_seen_commit: 707b8ece6e5eece0a27b80855172e12e624f9c71
     last_reviewed_commit: 707b8ece6e5eece0a27b80855172e12e624f9c71
-    last_integrated_commit: null
+    last_integrated_commit: 707b8ece6e5eece0a27b80855172e12e624f9c71
 
   compatibility.targeting:
     upstream: https://github.com/google/bundletool
     ref: 586a43a450712a1067f3d92cf7574dee68226302
-    integration: planned-ported
+    integration: ported
     license: Apache-2.0
     symbols:
       - AbiMatcher
       - MultiAbiMatcher
+      - SdkVersionMatcher
       - ScreenDensityMatcher
       - ScreenDensitySelector
-      - LanguageMatcher
-      - VariantMatcher
+      - TargetingComparators.MULTI_ABI_ALIAS_COMPARATOR
     last_seen_commit: 586a43a450712a1067f3d92cf7574dee68226302
     last_reviewed_commit: 586a43a450712a1067f3d92cf7574dee68226302
-    last_integrated_commit: null
+    last_integrated_commit: 586a43a450712a1067f3d92cf7574dee68226302
 
   update.selection:
     upstream: https://github.com/f-droid/fdroidclient

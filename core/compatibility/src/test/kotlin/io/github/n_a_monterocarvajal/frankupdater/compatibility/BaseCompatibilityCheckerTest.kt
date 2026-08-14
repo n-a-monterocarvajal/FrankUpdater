@@ -34,8 +34,70 @@ class BaseCompatibilityCheckerTest {
         assertEquals(CompatibilityResult.Compatible, result)
     }
 
+    @Test
+    fun `maximum sdk is respected`() {
+        val result = checker.check(
+            candidate = candidate(maxSdk = 25),
+            device = device(sdk = 26),
+        )
+
+        assertEquals(
+            CompatibilityResult.Incompatible(setOf(IncompatibilityReason.MaxSdk)),
+            result,
+        )
+    }
+
+    @Test
+    fun `minimum installable target sdk is respected on recent Android`() {
+        val result = checker.check(
+            candidate = candidate(targetSdk = 23),
+            device = device(sdk = 37),
+        )
+
+        assertEquals(
+            CompatibilityResult.Incompatible(setOf(IncompatibilityReason.TargetSdk)),
+            result,
+        )
+    }
+
+    @Test
+    fun `target sdk policy does not affect older Android`() {
+        val result = checker.check(
+            candidate = candidate(targetSdk = 1),
+            device = device(sdk = 33),
+        )
+
+        assertEquals(CompatibilityResult.Compatible, result)
+    }
+
+    @Test
+    fun `native code must support a device abi`() {
+        val result = checker.check(
+            candidate = candidate(abis = listOf("x86", "x86_64")),
+            device = device(sdk = 28, supportedAbis = listOf("arm64-v8a", "armeabi-v7a")),
+        )
+
+        assertEquals(
+            CompatibilityResult.Incompatible(setOf(IncompatibilityReason.Abi)),
+            result,
+        )
+    }
+
+    @Test
+    fun `apk without native code is universal`() {
+        val result = checker.check(
+            candidate = candidate(abis = emptyList()),
+            device = device(sdk = 28, supportedAbis = listOf("x86_64")),
+        )
+
+        assertEquals(CompatibilityResult.Compatible, result)
+    }
+
     private fun candidate(
-        minSdk: Int?,
+        minSdk: Int? = null,
+        maxSdk: Int? = null,
+        targetSdk: Int? = 28,
+        abis: List<String> = emptyList(),
         requiredFeatures: Set<String> = emptySet(),
     ) = ArtifactCandidate(
         packageName = "org.example.app",
@@ -43,9 +105,9 @@ class BaseCompatibilityCheckerTest {
         versionCode = 1,
         source = Source.GooglePlay,
         minSdk = minSdk,
-        maxSdk = null,
-        targetSdk = null,
-        abis = emptyList(),
+        maxSdk = maxSdk,
+        targetSdk = targetSdk,
+        abis = abis,
         densityDpi = null,
         locales = emptyList(),
         requiredFeatures = requiredFeatures,
@@ -59,10 +121,11 @@ class BaseCompatibilityCheckerTest {
     private fun device(
         sdk: Int,
         features: Set<String> = emptySet(),
+        supportedAbis: List<String> = listOf("arm64-v8a", "armeabi-v7a"),
     ) = GenericDeviceProfile(
         sdk = sdk,
         codename = null,
-        supportedAbis = listOf("arm64-v8a", "armeabi-v7a"),
+        supportedAbis = supportedAbis,
         densityDpi = 420,
         locales = listOf("es-CL"),
         systemFeatures = features,
