@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -23,28 +24,34 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.window.core.layout.WindowSizeClass
 
 internal enum class NavigationDestination(
     val label: String,
+    val navigationLabel: String,
     val description: String,
 ) {
     Updates(
         label = "Actualizaciones",
+        navigationLabel = "Actualizaciones",
         description = "Aquí aparecerán las versiones compatibles disponibles.",
     ),
     Search(
         label = "Buscar",
+        navigationLabel = "Buscar",
         description = "La búsqueda multifuente se incorporará tras validar el núcleo local.",
     ),
     Library(
         label = "Biblioteca",
+        navigationLabel = "Biblioteca",
         description = "Los paquetes conservados estarán disponibles para reinstalar o compartir.",
     ),
     Settings(
         label = "Ajustes",
+        navigationLabel = "Ajustes",
         description = "Preferencias de fuentes, instalación y retención.",
     ),
 }
@@ -71,7 +78,14 @@ fun FrankUpdaterApp() {
                             selected = selectedIndex == index,
                             onClick = { selectedIndex = index },
                             icon = { Text(destination.label.take(1)) },
-                            label = { Text(destination.label) },
+                            label = {
+                                Text(
+                                    text = destination.navigationLabel,
+                                    modifier = Modifier.widthIn(max = 72.dp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
                         )
                     }
                 }
@@ -90,7 +104,14 @@ fun FrankUpdaterApp() {
                                 selected = selectedIndex == index,
                                 onClick = { selectedIndex = index },
                                 icon = { Text(destination.label.take(1)) },
-                                label = { Text(destination.label) },
+                                label = {
+                                    Text(
+                                        text = destination.navigationLabel,
+                                        modifier = Modifier.widthIn(max = 96.dp),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
                             )
                         }
                     }

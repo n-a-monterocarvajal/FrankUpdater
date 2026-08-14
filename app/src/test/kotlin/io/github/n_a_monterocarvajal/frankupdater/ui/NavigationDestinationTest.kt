@@ -11,4 +11,12 @@ class NavigationDestinationTest {
             NavigationDestination.entries.map { it.label },
         )
     }
+
+    @Test
+    fun `navigation labels preserve product names`() {
+        assertEquals(
+            listOf("Actualizaciones", "Buscar", "Biblioteca", "Ajustes"),
+            NavigationDestination.entries.map { it.navigationLabel },
+        )
+    }
 }
