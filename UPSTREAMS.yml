@@ -3,36 +3,40 @@ schema_version: 1
 components:
   inventory.installed-apps:
     upstream: https://github.com/rumboalla/apkupdater
+    ref: 69b6fcdf52a7735ae17101efe1a0cd26222fb276
     integration: planned-adapted
     license: GPL-3.0-only
     symbols:
       - AppsRepository
-    last_seen_commit: null
-    last_reviewed_commit: null
+    last_seen_commit: 69b6fcdf52a7735ae17101efe1a0cd26222fb276
+    last_reviewed_commit: 69b6fcdf52a7735ae17101efe1a0cd26222fb276
     last_integrated_commit: null
   device.profile:
     upstream: https://github.com/AuroraOSS/AuroraStore
+    ref: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
     integration: planned-adapted
-    license: GPL-3.0-only
+    license: GPL-2.0-or-later
     symbols:
       - NativeDeviceInfoProvider
-    last_seen_commit: null
-    last_reviewed_commit: null
+    last_seen_commit: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
+    last_reviewed_commit: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
     last_integrated_commit: null
 
   compatibility.base:
     upstream: https://github.com/f-droid/fdroidclient
+    ref: 707b8ece6e5eece0a27b80855172e12e624f9c71
     integration: planned-adapted
     license: GPL-3.0-only
     symbols:
       - CompatibilityCheckerImpl
       - CompatibilityCheckerUtils.minInstallableTargetSdk
-    last_seen_commit: null
-    last_reviewed_commit: null
+    last_seen_commit: 707b8ece6e5eece0a27b80855172e12e624f9c71
+    last_reviewed_commit: 707b8ece6e5eece0a27b80855172e12e624f9c71
     last_integrated_commit: null
 
   compatibility.targeting:
     upstream: https://github.com/google/bundletool
+    ref: 586a43a450712a1067f3d92cf7574dee68226302
     integration: planned-ported
     license: Apache-2.0
     symbols:
@@ -42,8 +46,8 @@ components:
       - ScreenDensitySelector
       - LanguageMatcher
       - VariantMatcher
-    last_seen_commit: null
-    last_reviewed_commit: null
+    last_seen_commit: 586a43a450712a1067f3d92cf7574dee68226302
+    last_reviewed_commit: 586a43a450712a1067f3d92cf7574dee68226302
     last_integrated_commit: null
 
   update.selection:
