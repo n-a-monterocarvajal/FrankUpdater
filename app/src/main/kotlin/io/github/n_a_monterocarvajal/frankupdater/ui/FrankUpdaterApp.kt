@@ -28,6 +28,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.window.core.layout.WindowSizeClass
+import io.github.n_a_monterocarvajal.frankupdater.device.GenericDeviceProfileProvider
+import io.github.n_a_monterocarvajal.frankupdater.inventory.InstalledAppRepository
 
 internal enum class NavigationDestination(
     val label: String,
@@ -57,7 +59,10 @@ internal enum class NavigationDestination(
 }
 
 @Composable
-fun FrankUpdaterApp() {
+fun FrankUpdaterApp(
+    installedAppRepository: InstalledAppRepository,
+    deviceProfileProvider: GenericDeviceProfileProvider,
+) {
     val windowSizeClass = currentWindowAdaptiveInfoV2().windowSizeClass
     val useNavigationRail = windowSizeClass.isWidthAtLeastBreakpoint(
         WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND,
@@ -91,6 +96,8 @@ fun FrankUpdaterApp() {
                 }
                 DestinationContent(
                     destination = destinations[selectedIndex],
+                    installedAppRepository = installedAppRepository,
+                    deviceProfileProvider = deviceProfileProvider,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -119,6 +126,8 @@ fun FrankUpdaterApp() {
             ) { contentPadding ->
                 DestinationContent(
                     destination = destinations[selectedIndex],
+                    installedAppRepository = installedAppRepository,
+                    deviceProfileProvider = deviceProfileProvider,
                     modifier = Modifier.padding(contentPadding),
                 )
             }
@@ -129,6 +138,8 @@ fun FrankUpdaterApp() {
 @Composable
 private fun DestinationContent(
     destination: NavigationDestination,
+    installedAppRepository: InstalledAppRepository,
+    deviceProfileProvider: GenericDeviceProfileProvider,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -143,22 +154,30 @@ private fun DestinationContent(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 18.dp),
             )
         }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = destination.label,
-                    style = MaterialTheme.typography.headlineMedium,
-                )
-                Text(
-                    text = destination.description,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
+        if (destination == NavigationDestination.Updates) {
+            InventoryRoute(
+                installedAppRepository = installedAppRepository,
+                deviceProfileProvider = deviceProfileProvider,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = destination.label,
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
+                    Text(
+                        text = destination.description,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
             }
         }
     }
