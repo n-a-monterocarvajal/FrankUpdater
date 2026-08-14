@@ -3,8 +3,9 @@
 ## Estado
 
 - Etapa 0 — Fundación: completada y validada.
-- Etapa 1 — Inventario y compatibilidad local: siguiente etapa activa.
-- Etapas 2 a 8: pendientes; no adelantarlas salvo que sean necesarias para diseñar una interfaz estable de la etapa activa.
+- Etapa 1 — Inventario y compatibilidad local: completada y validada.
+- Etapa 2 — Pipeline local seguro: siguiente etapa activa.
+- Etapas 3 a 8: pendientes; no adelantarlas salvo que sean necesarias para diseñar una interfaz estable de la etapa activa.
 
 Cada etapa debe terminar con tests automatizados, una demostración verificable y documentación suficiente antes de iniciar la siguiente.
 
@@ -31,6 +32,15 @@ La estrategia de visibilidad de paquetes debe respetar las restricciones moderna
 - El checker produce resultados deterministas cubiertos por tests ABI/DPI/SDK.
 - `lint`, tests y ensamblado debug finalizan correctamente.
 - Se valida como mínimo en un teléfono API 23 y en un dispositivo moderno con diseño adaptativo.
+
+### Registro de cierre
+
+- `InstalledAppRepository` enumera el inventario completo mediante `PackageManager` fuera del hilo principal.
+- El permiso y tratamiento local de datos están justificados en `../docs/adr/0002-package-visibility-and-local-inventory.md`.
+- `GenericDeviceProfile` no contiene propiedades de Play; `PlayDeviceProfile` lo compone y mantiene sus propiedades específicas separadas.
+- El checker base adapta F-Droid y el targeting ABI/multi-ABI/DPI/SDK porta el subconjunto esencial de bundletool con tests de paridad.
+- `lintDebug`, `test` y `assembleDebug` finalizaron correctamente.
+- El inventario y la UI se demostraron en `Frank_API23_Phone` y `Frank_API36_Tablet`; el detalle reproducible está en `../docs/validation/stage-1.md`.
 
 ## Reglas permanentes
 

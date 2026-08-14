@@ -4,17 +4,23 @@ Cliente Android libre para encontrar, verificar e instalar la versión más reci
 
 ## Estado
 
-El repositorio se encuentra en fase de inicialización. Esta primera base contiene:
+Las etapas 0 y 1 están completadas. La base actual contiene:
 
 - Kotlin y Jetpack Compose con Material 3;
 - UI adaptativa para ventanas compactas y amplias;
 - `minSdk 23` y `compileSdk 37`;
+- inventario local asíncrono de aplicaciones de usuario, sistema y deshabilitadas;
+- perfiles genérico y Play separados;
 - modelos de dominio independientes de los proveedores;
-- comprobación básica y determinista de SDK/features;
+- comprobación determinista de SDK, target SDK, ABI y features;
+- targeting ABI, multi-ABI, densidad y SDK portado del subconjunto esencial de bundletool;
+- UI de inventario adaptativa con navegación compacta y amplia;
 - trazabilidad de upstreams desde el primer commit;
 - CI para compilación, lint y tests.
 
 La especificación fundante está en [`docs/spec/ANDROID_COMPAT_UPDATER_SPEC.md`](docs/spec/ANDROID_COMPAT_UPDATER_SPEC.md) y la secuencia de implementación en [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+La validación reproducible de la etapa actual está registrada en [`docs/validation/stage-1.md`](docs/validation/stage-1.md).
 
 ## Compilar
 
@@ -42,6 +48,8 @@ En Linux/macOS:
 - `app`: shell Compose y punto de entrada Android.
 - `core:model`: modelos normalizados sin dependencias Android.
 - `core:compatibility`: contratos y reglas deterministas de compatibilidad.
+
+La implementación Android de inventario y perfil vive en `app` y depende de los modelos puros. La estrategia de visibilidad y los datos tratados están documentados en [`docs/adr/0002-package-visibility-and-local-inventory.md`](docs/adr/0002-package-visibility-and-local-inventory.md).
 
 Los providers y subsistemas adicionales se crearán cuando comience su fase, evitando módulos vacíos y acoplamientos prematuros.
 
