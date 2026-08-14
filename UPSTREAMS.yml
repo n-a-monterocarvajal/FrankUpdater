@@ -4,23 +4,24 @@ components:
   inventory.installed-apps:
     upstream: https://github.com/rumboalla/apkupdater
     ref: 69b6fcdf52a7735ae17101efe1a0cd26222fb276
-    integration: planned-adapted
+    integration: adapted
     license: GPL-3.0-only
     symbols:
       - AppsRepository
+      - PackageInfo.toAppInstalled
     last_seen_commit: 69b6fcdf52a7735ae17101efe1a0cd26222fb276
     last_reviewed_commit: 69b6fcdf52a7735ae17101efe1a0cd26222fb276
-    last_integrated_commit: null
+    last_integrated_commit: 69b6fcdf52a7735ae17101efe1a0cd26222fb276
   device.profile:
     upstream: https://github.com/AuroraOSS/AuroraStore
     ref: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
-    integration: planned-adapted
+    integration: adapted
     license: GPL-2.0-or-later
     symbols:
       - NativeDeviceInfoProvider
     last_seen_commit: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
     last_reviewed_commit: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
-    last_integrated_commit: null
+    last_integrated_commit: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
 
   compatibility.base:
     upstream: https://github.com/f-droid/fdroidclient

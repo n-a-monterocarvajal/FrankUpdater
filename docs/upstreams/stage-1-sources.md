@@ -23,3 +23,10 @@ Los ports y adaptaciones locales conservarán encabezados SPDX y comentarios de 
 - `SplitTargetingMatcher` usa modelos Kotlin pequeños en lugar de protobuf. Conserva el orden de preferencia de ABI del dispositivo, la semántica values/alternatives, conjuntos multi-ABI completos, SDK de pre-release y la selección de densidad asimétrica del framework Android.
 - El comparador multi-ABI conserva el orden explícito de arquitecturas de bundletool y la comparación lexicográfica de conjuntos, sin depender de Guava.
 - Idioma y targeting de variantes completas no se declaran integrados en esta etapa. Se añadirán cuando existan candidatos split normalizados que puedan representarlos y tests de paridad propios.
+
+## Adaptaciones de inventario y perfil
+
+- El repositorio mantiene la consulta `PackageManager` de APKUpdater, pero no incorpora sus preferencias ni filtros: en esta etapa se incluyen apps de usuario, sistema y deshabilitadas y se etiquetan en la UI.
+- La firma se normaliza como historial de certificados SHA-256. En API 28+ se distingue entre múltiples firmantes actuales y rotación mediante `SigningInfo`; en APIs anteriores se usa `GET_SIGNATURES`.
+- El perfil genérico toma de Aurora las ABIs ordenadas, densidad, dimensiones, features, locales, bibliotecas compartidas y versión OpenGL. Usa los locales configurados del dispositivo, no todos los recursos localizados presentes en el sistema.
+- Propiedades de build y futuros identificadores GSF/Vending viven solo en `PlayDeviceProfile`. El checker y el inventario dependen exclusivamente de `GenericDeviceProfile`.
