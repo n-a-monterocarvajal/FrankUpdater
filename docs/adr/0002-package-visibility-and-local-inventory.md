@@ -12,6 +12,7 @@ FrankUpdater se distribuye mediante GitHub Releases, F-Droid y otras plataformas
 ## Decisión
 
 - Declarar `android.permission.QUERY_ALL_PACKAGES` para que el inventario sea completo en Android 11 y posteriores.
+- Suprimir de forma localizada `QueryAllPackagesPermission` de Android lint en la declaración del permiso. La alternativa sugerida, una lista `<queries>`, no puede enumerar aplicaciones arbitrarias y contradice la función principal de un actualizador.
 - Consultar el inventario mediante `PackageManager.getInstalledPackages` con el flag de certificados apropiado para cada API.
 - Incluir aplicaciones de usuario, aplicaciones del sistema, actualizaciones de aplicaciones del sistema y aplicaciones deshabilitadas. La interfaz debe identificarlas; no se descartan silenciosamente.
 - Conservar localmente por aplicación: nombre visible, nombre de paquete, versión, `versionCode`, historial de certificados SHA-256, rutas de splits, fuente instaladora cuando Android la expone, estado de sistema y estado habilitado.
