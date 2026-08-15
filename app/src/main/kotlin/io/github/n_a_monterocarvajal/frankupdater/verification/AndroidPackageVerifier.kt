@@ -20,17 +20,21 @@ class AndroidPackageVerifier(
     private val validator: PackageSetValidator = PackageSetValidator(),
 ) {
     private val packageManager = context.applicationContext.packageManager
+    private val metadataReader = BinaryManifestMetadataReader()
 
     fun verify(
         archive: ExtractedPackageArchive,
         expectations: VerificationExpectations = VerificationExpectations(),
     ): VerifiedPackageArchive {
         val parsed = archive.apks.map { extracted ->
+            val metadata = runCatching { metadataReader.read(extracted.file) }
+                .getOrElse { error ->
+                    throw PackageVerificationException(
+                        setOf(VerificationIssue.PackageMismatch),
+                        "No se pudo leer el manifiesto de ${extracted.entryName}: ${error.message}",
+                    )
+                }
             val packageInfo = parsePackageInfo(extracted.file.absolutePath)
-                ?: throw PackageVerificationException(
-                    setOf(VerificationIssue.PackageMismatch),
-                    "Android no pudo leer ${extracted.entryName} como APK.",
-                )
             val signatureResult = runCatching {
                 ApkVerifier.Builder(extracted.file).build().verify()
             }.getOrElse { error ->
@@ -47,21 +51,21 @@ class AndroidPackageVerifier(
                 ?.map(Certificate::sha256)
                 ?.toSet()
                 .orEmpty()
-            val applicationInfo = packageInfo.applicationInfo
+            val applicationInfo = packageInfo?.applicationInfo
             ParsedApk(
                 entryName = extracted.entryName,
                 file = extracted.file,
                 sha256 = extracted.sha256,
-                packageName = packageInfo.packageName,
-                versionName = packageInfo.versionName,
-                versionCode = packageInfo.versionCodeCompat(),
-                splitName = packageInfo.splitNames.orEmpty().singleOrNull(),
-                minSdk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    applicationInfo?.minSdkVersion
+                packageName = metadata.packageName,
+                versionName = packageInfo?.versionName,
+                versionCode = metadata.versionCode,
+                splitName = metadata.splitName,
+                minSdk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && applicationInfo != null) {
+                    applicationInfo.minSdkVersion
                 } else {
-                    null
+                    metadata.minSdk
                 },
-                targetSdk = applicationInfo?.targetSdkVersion,
+                targetSdk = applicationInfo?.targetSdkVersion ?: metadata.targetSdk,
                 signerDigests = signerDigests,
                 signingLineage = lineageDigests + signerDigests,
                 signatureVerified = signatureResult.isVerified,
