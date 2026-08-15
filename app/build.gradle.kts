@@ -46,6 +46,8 @@ android {
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:compatibility"))
+    implementation(project(":core:archive"))
+    implementation(libs.apksig.android)
 
     implementation(platform(libs.compose.bom))
     androidTestImplementation(platform(libs.compose.bom))
