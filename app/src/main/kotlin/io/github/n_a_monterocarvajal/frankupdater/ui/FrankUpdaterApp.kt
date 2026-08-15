@@ -30,6 +30,9 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.window.core.layout.WindowSizeClass
 import io.github.n_a_monterocarvajal.frankupdater.device.GenericDeviceProfileProvider
 import io.github.n_a_monterocarvajal.frankupdater.inventory.InstalledAppRepository
+import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackageLibrary
+import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackagePipeline
+import io.github.n_a_monterocarvajal.frankupdater.storage.RetentionPreferences
 
 internal enum class NavigationDestination(
     val label: String,
@@ -62,6 +65,9 @@ internal enum class NavigationDestination(
 fun FrankUpdaterApp(
     installedAppRepository: InstalledAppRepository,
     deviceProfileProvider: GenericDeviceProfileProvider,
+    packagePipeline: LocalPackagePipeline,
+    packageLibrary: LocalPackageLibrary,
+    retentionPreferences: RetentionPreferences,
 ) {
     val windowSizeClass = currentWindowAdaptiveInfoV2().windowSizeClass
     val useNavigationRail = windowSizeClass.isWidthAtLeastBreakpoint(
@@ -98,6 +104,9 @@ fun FrankUpdaterApp(
                     destination = destinations[selectedIndex],
                     installedAppRepository = installedAppRepository,
                     deviceProfileProvider = deviceProfileProvider,
+                    packagePipeline = packagePipeline,
+                    packageLibrary = packageLibrary,
+                    retentionPreferences = retentionPreferences,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -128,6 +137,9 @@ fun FrankUpdaterApp(
                     destination = destinations[selectedIndex],
                     installedAppRepository = installedAppRepository,
                     deviceProfileProvider = deviceProfileProvider,
+                    packagePipeline = packagePipeline,
+                    packageLibrary = packageLibrary,
+                    retentionPreferences = retentionPreferences,
                     modifier = Modifier.padding(contentPadding),
                 )
             }
@@ -140,6 +152,9 @@ private fun DestinationContent(
     destination: NavigationDestination,
     installedAppRepository: InstalledAppRepository,
     deviceProfileProvider: GenericDeviceProfileProvider,
+    packagePipeline: LocalPackagePipeline,
+    packageLibrary: LocalPackageLibrary,
+    retentionPreferences: RetentionPreferences,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -154,29 +169,39 @@ private fun DestinationContent(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 18.dp),
             )
         }
-        if (destination == NavigationDestination.Updates) {
-            InventoryRoute(
-                installedAppRepository = installedAppRepository,
-                deviceProfileProvider = deviceProfileProvider,
-                modifier = Modifier.fillMaxSize(),
+        when (destination) {
+            NavigationDestination.Updates -> InventoryRoute(
+                installedAppRepository,
+                deviceProfileProvider,
+                Modifier.fillMaxSize(),
             )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = destination.label,
-                        style = MaterialTheme.typography.headlineMedium,
-                    )
-                    Text(
-                        text = destination.description,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(top = 12.dp),
-                    )
+            NavigationDestination.Library -> LibraryRoute(
+                packagePipeline,
+                packageLibrary,
+                Modifier.fillMaxSize(),
+            )
+            NavigationDestination.Settings -> SettingsRoute(
+                retentionPreferences,
+                Modifier.fillMaxSize(),
+            )
+            NavigationDestination.Search -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = destination.label,
+                            style = MaterialTheme.typography.headlineMedium,
+                        )
+                        Text(
+                            text = destination.description,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(top = 12.dp),
+                        )
+                    }
                 }
             }
         }

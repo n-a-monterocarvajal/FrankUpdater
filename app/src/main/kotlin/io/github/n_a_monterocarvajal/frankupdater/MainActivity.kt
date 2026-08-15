@@ -6,6 +6,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import io.github.n_a_monterocarvajal.frankupdater.device.AndroidGenericDeviceProfileProvider
 import io.github.n_a_monterocarvajal.frankupdater.inventory.AndroidInstalledAppRepository
+import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackageLibrary
+import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackagePipeline
+import io.github.n_a_monterocarvajal.frankupdater.storage.RetentionPreferences
 import io.github.n_a_monterocarvajal.frankupdater.ui.FrankUpdaterApp
 import io.github.n_a_monterocarvajal.frankupdater.ui.theme.FrankUpdaterTheme
 
@@ -16,6 +19,9 @@ class MainActivity : ComponentActivity() {
     private val genericDeviceProfileProvider by lazy {
         AndroidGenericDeviceProfileProvider(applicationContext)
     }
+    private val packagePipeline by lazy { LocalPackagePipeline(applicationContext) }
+    private val packageLibrary by lazy { LocalPackageLibrary(applicationContext) }
+    private val retentionPreferences by lazy { RetentionPreferences(applicationContext) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -25,6 +31,9 @@ class MainActivity : ComponentActivity() {
                 FrankUpdaterApp(
                     installedAppRepository = installedAppRepository,
                     deviceProfileProvider = genericDeviceProfileProvider,
+                    packagePipeline = packagePipeline,
+                    packageLibrary = packageLibrary,
+                    retentionPreferences = retentionPreferences,
                 )
             }
         }
