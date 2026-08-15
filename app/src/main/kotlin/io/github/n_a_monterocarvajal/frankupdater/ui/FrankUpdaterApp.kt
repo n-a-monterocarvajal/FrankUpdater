@@ -30,6 +30,7 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.window.core.layout.WindowSizeClass
 import io.github.n_a_monterocarvajal.frankupdater.device.GenericDeviceProfileProvider
 import io.github.n_a_monterocarvajal.frankupdater.inventory.InstalledAppRepository
+import io.github.n_a_monterocarvajal.frankupdater.installer.SystemSessionInstaller
 import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackageLibrary
 import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackagePipeline
 import io.github.n_a_monterocarvajal.frankupdater.storage.RetentionPreferences
@@ -68,6 +69,7 @@ fun FrankUpdaterApp(
     packagePipeline: LocalPackagePipeline,
     packageLibrary: LocalPackageLibrary,
     retentionPreferences: RetentionPreferences,
+    sessionInstaller: SystemSessionInstaller,
 ) {
     val windowSizeClass = currentWindowAdaptiveInfoV2().windowSizeClass
     val useNavigationRail = windowSizeClass.isWidthAtLeastBreakpoint(
@@ -107,6 +109,7 @@ fun FrankUpdaterApp(
                     packagePipeline = packagePipeline,
                     packageLibrary = packageLibrary,
                     retentionPreferences = retentionPreferences,
+                    sessionInstaller = sessionInstaller,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -140,6 +143,7 @@ fun FrankUpdaterApp(
                     packagePipeline = packagePipeline,
                     packageLibrary = packageLibrary,
                     retentionPreferences = retentionPreferences,
+                    sessionInstaller = sessionInstaller,
                     modifier = Modifier.padding(contentPadding),
                 )
             }
@@ -155,6 +159,7 @@ private fun DestinationContent(
     packagePipeline: LocalPackagePipeline,
     packageLibrary: LocalPackageLibrary,
     retentionPreferences: RetentionPreferences,
+    sessionInstaller: SystemSessionInstaller,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -178,6 +183,8 @@ private fun DestinationContent(
             NavigationDestination.Library -> LibraryRoute(
                 packagePipeline,
                 packageLibrary,
+                retentionPreferences,
+                sessionInstaller,
                 Modifier.fillMaxSize(),
             )
             NavigationDestination.Settings -> SettingsRoute(
