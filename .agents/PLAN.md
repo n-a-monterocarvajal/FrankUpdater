@@ -4,8 +4,8 @@
 
 - Etapa 0 — Fundación: completada y validada.
 - Etapa 1 — Inventario y compatibilidad local: completada y validada.
-- Etapa 2 — Pipeline local seguro: activa; implementación terminada y cierre de instalación pendiente.
-- Etapas 3 a 8: pendientes; no adelantarlas salvo que sean necesarias para diseñar una interfaz estable de la etapa activa.
+- Etapa 2 — Pipeline local seguro: completada y validada.
+- Etapas 3 a 8: pendientes; la Etapa 3 no se ha iniciado.
 
 Cada etapa debe terminar con tests automatizados, una demostración verificable y documentación suficiente antes de iniciar la siguiente.
 
@@ -65,13 +65,15 @@ Entregables:
 - Se valida como mínimo en un teléfono API 23 y en un dispositivo moderno con diseño adaptativo.
 - La evidencia distingue defectos reproducibles, limitaciones del entorno y resultados no concluyentes.
 
-### Estado de validación
+### Registro de cierre
 
 - La implementación, los tests automatizados, SAF, los cuatro formatos, firma, integridad, biblioteca, retención y UI adaptable están verificados.
 - `lintDebug`, `test` y `assembleDebug` finalizaron correctamente.
 - Las pruebas instrumentadas pasaron en `Frank_API23_Phone` y `Frank_API36_Tablet`.
-- Un APKS real de `com.android.vending`, con base y seis splits, fue importado y verificado en API 36.
-- El cierre permanece pendiente: Android solicitó habilitar `Allow from this source` para FrankUpdater y no se cambió esa opción persistente sin autorización explícita.
+- Un APKS real de `com.android.vending`, con base y seis splits, fue importado, verificado e instalado correctamente mediante una sola sesión en API 36.
+- Android mostró la confirmación de actualización, FrankUpdater recibió el resultado exitoso y `pm path` confirmó las siete rutas instaladas.
+- La política `Preguntar` conservó el original verificado y mantuvo las acciones de biblioteca después de instalar.
+- El permiso temporal `REQUEST_INSTALL_PACKAGES` se aplicó únicamente tras autorización explícita y se devolvió a `default` al terminar.
 - El detalle reproducible y la clasificación de incidencias están en `../docs/validation/stage-2.md`.
 
 ## Reglas permanentes
