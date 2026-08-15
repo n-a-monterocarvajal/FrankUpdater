@@ -48,7 +48,6 @@ dependencies {
     implementation(project(":core:compatibility"))
     implementation(project(":core:archive"))
     implementation(libs.apksig.android)
-    implementation(libs.arsclib)
 
     implementation(platform(libs.compose.bom))
     androidTestImplementation(platform(libs.compose.bom))

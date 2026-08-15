@@ -124,19 +124,6 @@ components:
     last_reviewed_commit: c120428b7b07f2a2b638c7519c2d60680d6398ce
     last_integrated_commit: c120428b7b07f2a2b638c7519c2d60680d6398ce
 
-  verification.binary-manifest:
-    upstream: https://github.com/REAndroid/ARSCLib
-    ref: 8807c5f63a00028d57adbf6de86137afcee3d595
-    integration: dependency
-    license: Apache-2.0
-    symbols:
-      - ResXmlDocument
-      - ResXmlElement
-      - ResXmlAttribute
-    last_seen_commit: 8807c5f63a00028d57adbf6de86137afcee3d595
-    last_reviewed_commit: 8807c5f63a00028d57adbf6de86137afcee3d595
-    last_integrated_commit: 8807c5f63a00028d57adbf6de86137afcee3d595
-
   installer.router:
     upstream: https://github.com/Droid-ify/client
     integration: planned-adapted
