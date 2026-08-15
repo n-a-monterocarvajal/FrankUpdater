@@ -93,23 +93,36 @@ components:
 
   archive.reader:
     upstream: https://github.com/MuntashirAkon/AppManager
-    integration: planned-adapted
+    ref: fc1e70074e8cf75c0619e526e688c16ad2e1e862
+    integration: adapted
     license: GPL-3.0-or-later
     symbols:
       - ApkFile
       - SplitApkChooser
-    last_seen_commit: null
-    last_reviewed_commit: null
+    last_seen_commit: fc1e70074e8cf75c0619e526e688c16ad2e1e862
+    last_reviewed_commit: fc1e70074e8cf75c0619e526e688c16ad2e1e862
+    last_integrated_commit: fc1e70074e8cf75c0619e526e688c16ad2e1e862
+
+  archive.apkm-legacy:
+    upstream: https://github.com/MuntashirAkon/unapkm-android
+    ref: 0cc2ced9ae0c227aa86c18a85e984f879247922a
+    integration: referenced
+    license: Apache-2.0
+    symbols:
+      - UnApkm
+    last_seen_commit: 0cc2ced9ae0c227aa86c18a85e984f879247922a
+    last_reviewed_commit: 0cc2ced9ae0c227aa86c18a85e984f879247922a
     last_integrated_commit: null
 
   verification.signature:
     upstream: https://github.com/MuntashirAkon/apksig-android
-    integration: planned-dependency
+    ref: c120428b7b07f2a2b638c7519c2d60680d6398ce
+    integration: dependency
     license: Apache-2.0
     symbols: []
-    last_seen_commit: null
-    last_reviewed_commit: null
-    last_integrated_commit: null
+    last_seen_commit: c120428b7b07f2a2b638c7519c2d60680d6398ce
+    last_reviewed_commit: c120428b7b07f2a2b638c7519c2d60680d6398ce
+    last_integrated_commit: c120428b7b07f2a2b638c7519c2d60680d6398ce
 
   installer.router:
     upstream: https://github.com/Droid-ify/client
@@ -120,3 +133,14 @@ components:
     last_seen_commit: null
     last_reviewed_commit: null
     last_integrated_commit: null
+
+  installer.session:
+    upstream: https://github.com/AuroraOSS/AuroraStore
+    ref: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
+    integration: adapted
+    license: GPL-2.0-or-later
+    symbols:
+      - SessionInstaller
+    last_seen_commit: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
+    last_reviewed_commit: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
+    last_integrated_commit: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b

@@ -19,3 +19,4 @@ rootProject.name = "FrankUpdater"
 include(":app")
 include(":core:model")
 include(":core:compatibility")
+include(":core:archive")
