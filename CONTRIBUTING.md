@@ -2,10 +2,16 @@
 
 ## Flujo básico
 
-1. Crea una rama desde `main`.
+1. Revisa ramas y directorios de trabajo antes de empezar. Continúa desde el último
+   commit validado de la etapa correspondiente; `main` puede ir retrasado.
 2. Mantén cada cambio acotado a un objetivo comprobable.
 3. Ejecuta `./gradlew lintDebug test assembleDebug`.
 4. Documenta cambios de arquitectura mediante un ADR en `docs/adr/`.
+
+En estaciones limitadas, usa `scripts/verify.ps1`: un worker y heap de 1536 MiB.
+Agrupa pruebas JVM, lint y ensamblado. No abras Android Studio para compilar.
+Usa un único emulador, después de cerrar Gradle, solo para cambios de plataforma
+o interfaz que necesiten comprobarse. Conserva evidencia válida de etapas anteriores.
 
 ## Regla de procedencia
 

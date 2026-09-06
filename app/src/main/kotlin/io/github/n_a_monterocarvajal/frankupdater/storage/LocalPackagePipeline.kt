@@ -24,6 +24,27 @@ class LocalPackagePipeline(
     private val extractor = PackageArchiveExtractor()
     private val verifier = AndroidPackageVerifier(appContext)
 
+    internal suspend fun importPlayDownload(
+        source: File,
+        packageName: String,
+        versionCode: Long,
+    ): PreparedPackageImport = withContext(ioDispatcher) {
+        val working = File(appContext.cacheDir, "package-read/${UUID.randomUUID()}")
+        try {
+            val extracted = extractor.extract(source, "download.apks", working)
+            PreparedPackageImport(
+                verified = verifier.verify(extracted, VerificationExpectations(packageName, versionCode)),
+                originalName = "$packageName-$versionCode.apks",
+                sourceUri = "https://play.google.com/store/apps/details?id=$packageName",
+                workingDirectory = working,
+                importMethod = "direct-play",
+            )
+        } catch (error: Exception) {
+            working.deleteRecursively()
+            throw error
+        }
+    }
+
     suspend fun import(
         uri: Uri,
         expectations: VerificationExpectations = VerificationExpectations(),

@@ -1,6 +1,5 @@
 package io.github.n_a_monterocarvajal.frankupdater.ui
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -191,26 +189,7 @@ private fun DestinationContent(
                 retentionPreferences,
                 Modifier.fillMaxSize(),
             )
-            NavigationDestination.Search -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = destination.label,
-                            style = MaterialTheme.typography.headlineMedium,
-                        )
-                        Text(
-                            text = destination.description,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(top = 12.dp),
-                        )
-                    }
-                }
-            }
+            NavigationDestination.Search -> PlayRoute(packagePipeline, packageLibrary)
         }
     }
 }

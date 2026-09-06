@@ -161,7 +161,7 @@ class LocalPackageLibrary(context: Context) {
             apkCount = verified.apks.size,
             expansionFileCount = verified.expansionFiles.size,
             sourceUri = prepared.sourceUri,
-            importMethod = IMPORT_METHOD_SAF,
+            importMethod = prepared.importMethod,
             archiveFile = archive,
         )
         val metadata = File(directory, "$id.$METADATA_EXTENSION")
@@ -182,7 +182,6 @@ class LocalPackageLibrary(context: Context) {
 
     private companion object {
         const val METADATA_EXTENSION = "properties"
-        const val IMPORT_METHOD_SAF = "imported-saf"
     }
 }
 
@@ -191,6 +190,7 @@ data class PreparedPackageImport(
     val originalName: String,
     val sourceUri: String,
     internal val workingDirectory: File,
+    val importMethod: String = "imported-saf",
 ) : AutoCloseable {
     override fun close() {
         workingDirectory.deleteRecursively()

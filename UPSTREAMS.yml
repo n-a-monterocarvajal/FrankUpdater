@@ -63,12 +63,26 @@ components:
 
   provider.play:
     upstream: https://gitlab.com/AuroraOSS/gplayapi
-    integration: planned-dependency
-    license: GPL-3.0-only
-    symbols: []
-    last_seen_commit: null
-    last_reviewed_commit: null
+    ref: 18ec2bd74995d30e500b756359a4de3e37976f03
+    artifact: com.auroraoss:gplayapi:3.6.4
+    artifact_sha256: 7df649ec98e059b974342d863cc08d088defb3c554e44337f8e2b734d9209242
+    sources_sha256: 8dc2a0af00d1ac7ad77bb56599b021a51ce30a267e5ec70eb6fed6b4f32da6e4
+    integration: dependency
+    license: GPL-3.0-or-later
+    symbols: [AuthHelper, AppDetailsHelper, SearchHelper, PurchaseHelper, PlayFile, IHttpClient]
+    last_seen_commit: 18ec2bd74995d30e500b756359a4de3e37976f03
+    last_reviewed_commit: 18ec2bd74995d30e500b756359a4de3e37976f03
     last_integrated_commit: null
+
+  provider.play.integration:
+    upstream: https://github.com/AuroraOSS/AuroraStore
+    ref: 660670a35cd6980afaf1f9667b7df2144ddc435c
+    integration: adapted
+    license: GPL-2.0-or-later
+    symbols: [AuthProvider.buildAnonymousAuthData, NativeDeviceInfoProvider]
+    last_seen_commit: 660670a35cd6980afaf1f9667b7df2144ddc435c
+    last_reviewed_commit: 660670a35cd6980afaf1f9667b7df2144ddc435c
+    last_integrated_commit: 660670a35cd6980afaf1f9667b7df2144ddc435c
 
   provider.apkmirror.scraper:
     upstream: https://github.com/tanishqmanuja/apkmirror-downloader

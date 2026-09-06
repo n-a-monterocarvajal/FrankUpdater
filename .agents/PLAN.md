@@ -5,7 +5,8 @@
 - Etapa 0 — Fundación: completada y validada.
 - Etapa 1 — Inventario y compatibilidad local: completada y validada.
 - Etapa 2 — Pipeline local seguro: completada y validada.
-- Etapas 3 a 8: pendientes; la Etapa 3 no se ha iniciado.
+- Etapa 3 — Google Play: en desarrollo desde 8afd186, en codex/stage-3-play. Acceso anónimo con servidor configurado por el usuario; sin URL predeterminada. Validación de servicio vivo pendiente.
+- Etapas 4 a 8: pendientes.
 
 Cada etapa debe terminar con tests automatizados, una demostración verificable y documentación suficiente antes de iniciar la siguiente.
 
@@ -96,3 +97,23 @@ Desde la raíz del repositorio:
 ```
 
 Las pruebas visuales en emulador complementan, pero no sustituyen, los tests automatizados.
+
+## Continuación verificada, 6 de septiembre de 2026
+
+- Base correcta: `8afd186`, etapas 1 y 2 cerradas. `main` estaba retrasado.
+- No repetir la implementación de `codex/local-inventory` (`60531f6`). Su trabajo pendiente quedó en el stash `recovery: duplicated stage 2 before resuming 8afd186`.
+- Rescate selectivo registrado en `179779b`; 42 pruebas JVM aprobadas. Ver `../docs/validation/branch-reconciliation.md`.
+- Etapa 3: GPlayApi 3.6.4, contrato anónimo de Aurora, búsqueda, detalles, delivery por versión y descarga secuencial con SHA-256, Range y renovación en el siguiente intento.
+- Los APK descargados recorren el pipeline existente y se conservan en biblioteca. No hay instalación automática.
+- El usuario eligió servidor anónimo configurable. La URL concreta aún no se ha proporcionado; no inventar una ni usar dispensadores ajenos por defecto.
+- Mantener la etapa 3 abierta hasta validar el servicio vivo. No afirmar última versión compatible: pertenece a la etapa 4.
+- Revisar `../docs/adr/0004-google-play-anonymous-provider.md` y `../docs/upstreams/stage-3-sources.md`.
+
+## Recursos de la estación
+
+Usar `scripts/verify.ps1`: un worker, heap de 1536 MiB y Kotlin en el mismo proceso.
+Agrupar tests, lint y ensamblado. No abrir Android Studio. Ejecutar como máximo un
+emulador a la vez, una vez terminado Gradle, solo para cambios que necesitan Android.
+No repetir validaciones en vivo de etapas cerradas por cambios de documentación o lógica JVM.
+
+Validación inicial de etapa 3: 51 pruebas JVM sin fallos; lint sin errores y APK debug ensamblado. Una prueba API 23 aprobada en 2,949 s; ver ../docs/validation/stage-3.md. No hay emuladores activos. Falta servidor anónimo concreto para probar el flujo real; no cerrar etapa 3 ni avanzar a etapa 4 todavía.

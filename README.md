@@ -4,7 +4,8 @@ Cliente Android libre para encontrar, verificar e instalar la versión más reci
 
 ## Estado
 
-Las etapas 0 y 1 están completadas. La base actual contiene:
+Las etapas 0, 1 y 2 están completadas. La etapa 3 (Google Play) está en desarrollo.
+La base actual contiene:
 
 - Kotlin y Jetpack Compose con Material 3;
 - UI adaptativa para ventanas compactas y amplias;
@@ -18,15 +19,23 @@ Las etapas 0 y 1 están completadas. La base actual contiene:
 - trazabilidad de upstreams desde el primer commit;
 - CI para compilación, lint y tests.
 
+El pipeline local importa APK/APKS/APKM moderno/XAPK, verifica identidad y firma,
+instala base y splits y permite conservar paquetes. Buscar incorpora acceso
+anónimo mediante un servidor HTTPS configurable, consulta de Play y descarga
+verificada a la biblioteca. No incluye un servidor predeterminado; la validación
+del servicio vivo sigue pendiente. Consulta el [ADR de Play](docs/adr/0004-google-play-anonymous-provider.md).
+
 La especificación fundante está en [`docs/spec/ANDROID_COMPAT_UPDATER_SPEC.md`](docs/spec/ANDROID_COMPAT_UPDATER_SPEC.md) y la secuencia de implementación en [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-La validación reproducible de la etapa actual está registrada en [`docs/validation/stage-1.md`](docs/validation/stage-1.md).
+La validación de las etapas cerradas está en [etapa 1](docs/validation/stage-1.md)
+y [etapa 2](docs/validation/stage-2.md). La continuación desde la rama correcta y
+las mejoras rescatadas están en [reconciliación de ramas](docs/validation/branch-reconciliation.md).
 
 ## Compilar
 
 Requisitos:
 
-- Android Studio Quail o posterior;
+- Android Studio es opcional para compilar; basta el JDK y el SDK;
 - JDK 17 o posterior compatible con Gradle 9.5;
 - Android SDK Platform 37;
 - Android SDK Build Tools 36 o posterior.
@@ -34,7 +43,7 @@ Requisitos:
 En Windows:
 
 ```powershell
-.\gradlew.bat lintDebug test assembleDebug
+.\scripts\verify.ps1
 ```
 
 En Linux/macOS:
@@ -48,6 +57,7 @@ En Linux/macOS:
 - `app`: shell Compose y punto de entrada Android.
 - `core:model`: modelos normalizados sin dependencias Android.
 - `core:compatibility`: contratos y reglas deterministas de compatibilidad.
+- `core:archive`: extracción y verificación de integridad de archivos locales.
 
 La implementación Android de inventario y perfil vive en `app` y depende de los modelos puros. La estrategia de visibilidad y los datos tratados están documentados en [`docs/adr/0002-package-visibility-and-local-inventory.md`](docs/adr/0002-package-visibility-and-local-inventory.md).
 

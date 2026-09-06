@@ -5,7 +5,7 @@ La Etapa 2 fija las siguientes revisiones antes de adaptar código o incorporar 
 | Componente local | Upstream y revisión | Símbolos estudiados | Integración |
 |---|---|---|---|
 | Lectura y clasificación de archivos | `MuntashirAkon/AppManager@fc1e70074e8cf75c0619e526e688c16ad2e1e862` | `ApkFile`, `SplitApkChooser` | Adaptación al extractor seguro y modelos propios |
-| Firma criptográfica | `MuntashirAkon/apksig-android@c120428b7b07f2a2b638c7519c2d60680d6398ce` | API pública `ApkVerifier` y `ApkUtils` | Dependencia `4.4.0` |
+| Firma criptográfica | `MuntashirAkon/apksig-android@1bd3a0c000c56e752b41d6f65c3a3d3d8ad7f049` | API pública `ApkVerifier` y `ApkUtils` | Dependencia `4.4.0` |
 | Sesión de instalación | `AuroraOSS/AuroraStore@f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b` | `SessionInstaller` | Adaptación a una sola sesión base + splits |
 | APKM cifrado histórico | `MuntashirAkon/unapkm-android@0cc2ced9ae0c227aa86c18a85e984f879247922a` | `UnApkm` | Referencia; no integrada como dependencia obligatoria |
 
