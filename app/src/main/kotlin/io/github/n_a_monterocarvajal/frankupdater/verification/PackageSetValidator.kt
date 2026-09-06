@@ -10,9 +10,13 @@ class PackageSetValidator {
         installed: InstalledPackageIdentity? = null,
     ): InstallAction {
         require(apks.isNotEmpty())
-        val first = apks.first()
+        val first = apks.singleOrNull(ParsedApk::isBase) ?: apks.first()
         val issues = buildSet {
-            if (apks.any { !it.signatureVerified }) add(VerificationIssue.InvalidSignature)
+            if (apks.any { !it.signatureVerified || it.signerDigests.isEmpty() }) {
+                add(VerificationIssue.InvalidSignature)
+            }
+            val splitNames = apks.mapNotNull(ParsedApk::splitName)
+            if (splitNames.distinct().size != splitNames.size) add(VerificationIssue.DuplicateSplit)
             when (apks.count(ParsedApk::isBase)) {
                 0 -> add(VerificationIssue.MissingBase)
                 1 -> Unit
@@ -57,6 +61,8 @@ class PackageSetValidator {
     private fun isUpdateSignerCompatible(
         candidate: ParsedApk,
         installedCurrentSigners: Set<String>,
-    ): Boolean = candidate.signerDigests == installedCurrentSigners ||
-        candidate.signingLineage.containsAll(installedCurrentSigners)
+    ): Boolean = installedCurrentSigners.isNotEmpty() &&
+        (candidate.signerDigests == installedCurrentSigners ||
+            (candidate.signerDigests.size == 1 && installedCurrentSigners.size == 1 &&
+                installedCurrentSigners.single() in candidate.authorizedUpdateSigners))
 }

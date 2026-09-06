@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * Signature verification delegates to apksig-android 4.4.0 at
- * c120428b7b07f2a2b638c7519c2d60680d6398ce (Apache-2.0).
+ * 1bd3a0c000c56e752b41d6f65c3a3d3d8ad7f049 (Apache-2.0).
  */
 package io.github.n_a_monterocarvajal.frankupdater.verification
 
@@ -10,10 +10,8 @@ import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
-import com.android.apksig.ApkVerifier
 import io.github.n_a_monterocarvajal.frankupdater.archive.ExtractedPackageArchive
 import java.security.MessageDigest
-import java.security.cert.Certificate
 
 class AndroidPackageVerifier(
     context: Context,
@@ -36,21 +34,15 @@ class AndroidPackageVerifier(
                 }
             val packageInfo = parsePackageInfo(extracted.file.absolutePath)
             val signatureResult = runCatching {
-                ApkVerifier.Builder(extracted.file).build().verify()
+                SignatureVerifier().inspect(extracted.file, Build.VERSION.SDK_INT)
             }.getOrElse { error ->
                 throw PackageVerificationException(
                     setOf(VerificationIssue.InvalidSignature),
                     "No se pudo verificar la firma de ${extracted.entryName}: ${error.message}",
                 )
             }
-            val signerDigests = signatureResult.signerCertificates
-                .map(Certificate::sha256)
-                .toSet()
-            val lineageDigests = signatureResult.signingCertificateLineage
-                ?.certificatesInLineage
-                ?.map(Certificate::sha256)
-                ?.toSet()
-                .orEmpty()
+            val signerDigests = signatureResult.signers
+            val lineageDigests = signatureResult.lineage
             val applicationInfo = packageInfo?.applicationInfo
             ParsedApk(
                 entryName = extracted.entryName,
@@ -68,8 +60,9 @@ class AndroidPackageVerifier(
                 targetSdk = applicationInfo?.targetSdkVersion ?: metadata.targetSdk,
                 signerDigests = signerDigests,
                 signingLineage = lineageDigests + signerDigests,
-                signatureVerified = signatureResult.isVerified,
-                signatureErrors = signatureResult.errors.map(Any::toString),
+                signatureVerified = true,
+                signatureErrors = emptyList(),
+                authorizedUpdateSigners = signatureResult.authorizedAncestors,
             )
         }
         val base = parsed.singleOrNull(ParsedApk::isBase) ?: parsed.first()
@@ -134,8 +127,6 @@ class AndroidPackageVerifier(
 @Suppress("DEPRECATION")
 private fun PackageInfo.versionCodeCompat(): Long =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) longVersionCode else versionCode.toLong()
-
-private fun Certificate.sha256(): String = encoded.sha256()
 
 private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
     .digest(this)

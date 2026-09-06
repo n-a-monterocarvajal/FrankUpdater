@@ -27,6 +27,7 @@ data class ParsedApk(
     val signingLineage: Set<String>,
     val signatureVerified: Boolean,
     val signatureErrors: List<String>,
+    val authorizedUpdateSigners: Set<String> = emptySet(),
 ) {
     val isBase: Boolean
         get() = splitName == null
@@ -59,6 +60,7 @@ enum class VerificationIssue {
     InvalidSignature,
     MissingBase,
     MultipleBases,
+    DuplicateSplit,
     PackageMismatch,
     VersionMismatch,
     SignerMismatch,

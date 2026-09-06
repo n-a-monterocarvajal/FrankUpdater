@@ -45,6 +45,7 @@ class PackageSetValidatorTest {
     fun `accepts a rotated signer whose verified lineage contains installed signer`() {
         val installed = InstalledPackageIdentity("example", 1, setOf("old"))
         val candidate = apk(versionCode = 2, signers = setOf("new"), lineage = setOf("old", "new"))
+            .copy(authorizedUpdateSigners = setOf("old"))
 
         assertEquals(InstallAction.Update, validator.validate(listOf(candidate), installed = installed))
     }
@@ -70,6 +71,25 @@ class PackageSetValidatorTest {
             InstallAction.Reinstall,
             validator.validate(listOf(apk(versionCode = 2)), installed = installed),
         )
+    }
+
+    @Test
+    fun `lineage alone and empty or partial installed signers cannot authorize update`() {
+        val candidate = apk(signers = setOf("new"), lineage = setOf("old", "new"))
+        for (installedSigners in listOf(emptySet(), setOf("old"), setOf("old", "new"))) {
+            val error = assertThrows(PackageVerificationException::class.java) {
+                validator.validate(listOf(candidate), installed = InstalledPackageIdentity("example", 1, installedSigners))
+            }
+            assertEquals(setOf(VerificationIssue.InstalledSignerMismatch), error.issues)
+        }
+    }
+
+    @Test
+    fun `duplicate split names are rejected before installation`() {
+        val error = assertThrows(PackageVerificationException::class.java) {
+            validator.validate(listOf(apk(), apk(split = "config.es"), apk(split = "config.es")))
+        }
+        assertEquals(setOf(VerificationIssue.DuplicateSplit), error.issues)
     }
 
     private fun apk(

@@ -28,7 +28,18 @@ internal class BinaryManifestMetadataReader {
         val bytes = ZipFile(apk).use { zip ->
             val entry = zip.getEntry(ANDROID_MANIFEST)
                 ?: error("El APK no contiene $ANDROID_MANIFEST")
-            zip.getInputStream(entry).use { input -> input.readBytes() }
+            require(entry.size in 1..MAX_MANIFEST_BYTES.toLong()) { "Manifiesto demasiado grande." }
+            zip.getInputStream(entry).use { input ->
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    require(output.size() <= MAX_MANIFEST_BYTES - count) { "Manifiesto demasiado grande." }
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray()
+            }
         }
         fun manifestBuffer(): ByteBuffer = ByteBuffer.wrap(bytes)
         return BinaryManifestMetadata(
@@ -46,6 +57,7 @@ internal class BinaryManifestMetadataReader {
 
     private companion object {
         const val ANDROID_MANIFEST = "AndroidManifest.xml"
+        const val MAX_MANIFEST_BYTES = 2 * 1024 * 1024
         const val SPLIT_ATTRIBUTE = "split"
     }
 }
@@ -97,7 +109,7 @@ internal class BinaryXmlRootAttributeReader {
             val attributeOffset = attributesOffset + index * attributeSize
             input.requireRange(attributeOffset, attributeSize, chunkEnd)
             val name = pool.string(input.u32Index(attributeOffset + 4))
-            if (name == requestedName) {
+            if (name == requestedName && input.u32(attributeOffset) == NO_INDEX) {
                 val rawValueIndex = input.u32(attributeOffset + 8)
                 val dataType = input.u8(attributeOffset + 15)
                 val data = input.u32(attributeOffset + 16)

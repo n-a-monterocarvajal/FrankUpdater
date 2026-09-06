@@ -116,13 +116,13 @@ components:
 
   verification.signature:
     upstream: https://github.com/MuntashirAkon/apksig-android
-    ref: c120428b7b07f2a2b638c7519c2d60680d6398ce
+    ref: 1bd3a0c000c56e752b41d6f65c3a3d3d8ad7f049
     integration: dependency
     license: Apache-2.0
     symbols: []
-    last_seen_commit: c120428b7b07f2a2b638c7519c2d60680d6398ce
-    last_reviewed_commit: c120428b7b07f2a2b638c7519c2d60680d6398ce
-    last_integrated_commit: c120428b7b07f2a2b638c7519c2d60680d6398ce
+    last_seen_commit: 1bd3a0c000c56e752b41d6f65c3a3d3d8ad7f049
+    last_reviewed_commit: 1bd3a0c000c56e752b41d6f65c3a3d3d8ad7f049
+    last_integrated_commit: 1bd3a0c000c56e752b41d6f65c3a3d3d8ad7f049
 
   installer.router:
     upstream: https://github.com/Droid-ify/client
