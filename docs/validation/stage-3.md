@@ -55,8 +55,12 @@ pasada solo comprueba la nueva dependencia y la pantalla inicial en la API míni
 
 ## Pendiente para cerrar la etapa
 
-El usuario eligió un servidor anónimo configurable, pero todavía no proporcionó
-una URL. No se eligió un servicio ajeno por defecto. Por tanto no se han demostrado
+El usuario autorizó posteriormente usar `https://auroraoss.com/api/auth` de forma
+voluntaria para la prueba real. La aplicación mantiene el campo vacío por defecto.
+El procedimiento opt-in está en [prueba real de Play](play-live-test.md).
+El intento real en API 23 recibió HTTP 403 durante el acceso anónimo; una consulta
+HEAD al dispensador también recibió 403 desde Cloudflare. No se reintentó la
+autenticación. El emulador se cerró. Por tanto no se consideran demostrados
 acceso anónimo real, búsqueda contra Play, ficha actual ni descarga de una versión
 servida realmente. La decisión del spike es continuar la implementación, con el
 go operativo condicionado a esa demostración.

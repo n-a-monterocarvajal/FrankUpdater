@@ -105,7 +105,7 @@ Las pruebas visuales en emulador complementan, pero no sustituyen, los tests aut
 - Rescate selectivo registrado en `179779b`; 42 pruebas JVM aprobadas. Ver `../docs/validation/branch-reconciliation.md`.
 - Etapa 3: GPlayApi 3.6.4, contrato anónimo de Aurora, búsqueda, detalles, delivery por versión y descarga secuencial con SHA-256, Range y renovación en el siguiente intento.
 - Los APK descargados recorren el pipeline existente y se conservan en biblioteca. No hay instalación automática.
-- El usuario eligió servidor anónimo configurable. La URL concreta aún no se ha proporcionado; no inventar una ni usar dispensadores ajenos por defecto.
+- El usuario eligió servidor anónimo configurable. El usuario autorizó usar https://auroraoss.com/api/auth voluntariamente para las pruebas. Mantener el campo vacío por defecto y no solicitar sesiones repetidamente.
 - Mantener la etapa 3 abierta hasta validar el servicio vivo. No afirmar última versión compatible: pertenece a la etapa 4.
 - Revisar `../docs/adr/0004-google-play-anonymous-provider.md` y `../docs/upstreams/stage-3-sources.md`.
 
@@ -116,4 +116,7 @@ Agrupar tests, lint y ensamblado. No abrir Android Studio. Ejecutar como máximo
 emulador a la vez, una vez terminado Gradle, solo para cambios que necesitan Android.
 No repetir validaciones en vivo de etapas cerradas por cambios de documentación o lógica JVM.
 
-Validación inicial de etapa 3: 51 pruebas JVM sin fallos; lint sin errores y APK debug ensamblado. Una prueba API 23 aprobada en 2,949 s; ver ../docs/validation/stage-3.md. No hay emuladores activos. Falta servidor anónimo concreto para probar el flujo real; no cerrar etapa 3 ni avanzar a etapa 4 todavía.
+Validación inicial de etapa 3: 51 pruebas JVM sin fallos; lint sin errores y APK debug ensamblado. Una prueba API 23 aprobada en 2,949 s; ver ../docs/validation/stage-3.md. No hay emuladores activos. Servidor Aurora autorizado para probar el flujo real; no cerrar etapa 3 ni avanzar a etapa 4 todavía.
+
+
+Intento real autorizado con Aurora: una prueba API 23 terminó en 1,882 s con HTTP 403 durante acceso anónimo; HEAD al dispensador también devolvió 403 (Cloudflare). Sin nuevas sesiones ni evasión del rechazo. Emulador cerrado. No atribuir causa concreta ni afirmar éxito de búsqueda/descarga. Ver ../docs/validation/play-live-test.md. Etapa 3 abierta hasta que el servicio acepte la solicitud o el usuario elija otro servidor.
