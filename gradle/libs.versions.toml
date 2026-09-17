@@ -16,7 +16,7 @@ gson = "2.14.0"
 jsoup = "1.23.2"
 desugar = "2.1.5"
 work = "2.11.2"
-shizuku = "12.2.0"
+shizuku = "13.1.5"
 
 [libraries]
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
