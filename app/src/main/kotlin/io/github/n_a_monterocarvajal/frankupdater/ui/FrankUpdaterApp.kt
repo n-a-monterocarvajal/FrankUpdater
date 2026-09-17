@@ -36,26 +36,36 @@ import io.github.n_a_monterocarvajal.frankupdater.storage.RetentionPreferences
 internal enum class NavigationDestination(
     val label: String,
     val navigationLabel: String,
+    val compactLabel: String,
+    val symbol: String,
     val description: String,
 ) {
     Updates(
         label = "Actualizaciones",
         navigationLabel = "Actualizaciones",
+        compactLabel = "Actual.",
+        symbol = "↻",
         description = "Aquí aparecerán las versiones compatibles disponibles.",
     ),
     Search(
         label = "Buscar",
         navigationLabel = "Buscar",
+        compactLabel = "Buscar",
+        symbol = "⌕",
         description = "La búsqueda multifuente se incorporará tras validar el núcleo local.",
     ),
     Library(
         label = "Biblioteca",
         navigationLabel = "Biblioteca",
+        compactLabel = "Biblio.",
+        symbol = "▣",
         description = "Los paquetes conservados estarán disponibles para reinstalar o compartir.",
     ),
     Settings(
         label = "Ajustes",
         navigationLabel = "Ajustes",
+        compactLabel = "Ajustes",
+        symbol = "⚙",
         description = "Preferencias de fuentes, instalación y retención.",
     ),
 }
@@ -88,10 +98,10 @@ fun FrankUpdaterApp(
                         NavigationRailItem(
                             selected = selectedIndex == index,
                             onClick = { selectedIndex = index },
-                            icon = { Text(destination.label.take(1)) },
+                            icon = { Text(destination.symbol) },
                             label = {
                                 Text(
-                                    text = destination.navigationLabel,
+                                    text = destination.compactLabel,
                                     modifier = Modifier.widthIn(max = 72.dp),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -120,10 +130,10 @@ fun FrankUpdaterApp(
                             NavigationBarItem(
                                 selected = selectedIndex == index,
                                 onClick = { selectedIndex = index },
-                                icon = { Text(destination.label.take(1)) },
+                                icon = { Text(destination.symbol) },
                                 label = {
                                     Text(
-                                        text = destination.navigationLabel,
+                                        text = destination.compactLabel,
                                         modifier = Modifier.widthIn(max = 96.dp),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
