@@ -4,7 +4,9 @@ Cliente Android libre para encontrar, verificar e instalar la versión más reci
 
 ## Estado
 
-Las etapas 0, 1 y 2 están completadas. La etapa 3 (Google Play) está en desarrollo.
+Las etapas 0, 1 y 2 están completadas. La validación real de Google Play sigue
+pendiente tras un HTTP 403 del servidor anónimo. El desarrollo continúa con
+catálogo multifuente y proveedores web (etapas 4 a 6).
 La base actual contiene:
 
 - Kotlin y Jetpack Compose con Material 3;
@@ -24,6 +26,11 @@ instala base y splits y permite conservar paquetes. Buscar incorpora acceso
 anónimo mediante un servidor HTTPS configurable, consulta de Play y descarga
 verificada a la biblioteca. No incluye un servidor predeterminado; la validación
 del servicio vivo sigue pendiente. Consulta el [ADR de Play](docs/adr/0004-google-play-anonymous-provider.md).
+
+Buscar también incorpora historial de APKMirror/APKPure, selección por código de
+versión, descarga verificada y alternativas web/navegador con importación. Los
+requisitos desconocidos se muestran como pendientes, sin afirmar compatibilidad.
+El alcance probado y los pendientes están en [etapas 4 a 6](docs/validation/stage-4-6.md).
 
 La especificación fundante está en [`docs/spec/ANDROID_COMPAT_UPDATER_SPEC.md`](docs/spec/ANDROID_COMPAT_UPDATER_SPEC.md) y la secuencia de implementación en [`docs/ROADMAP.md`](docs/ROADMAP.md).
 

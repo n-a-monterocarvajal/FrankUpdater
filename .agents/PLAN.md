@@ -6,7 +6,8 @@
 - Etapa 1 — Inventario y compatibilidad local: completada y validada.
 - Etapa 2 — Pipeline local seguro: completada y validada.
 - Etapa 3 — Google Play: en desarrollo desde 8afd186, en codex/stage-3-play. Acceso anónimo con servidor configurado por el usuario; sin URL predeterminada. Validación de servicio vivo pendiente.
-- Etapas 4 a 8: pendientes.
+- Etapas 4 a 6: en desarrollo en codex/version-catalog, descendiente de 8afd186. Catálogo en 05c50fb; proveedores web, integridad y fallback en validación. Ver ../docs/validation/stage-4-6.md.
+- Etapas 7 y 8: pendientes.
 
 Cada etapa debe terminar con tests automatizados, una demostración verificable y documentación suficiente antes de iniciar la siguiente.
 
@@ -120,3 +121,6 @@ Validación inicial de etapa 3: 51 pruebas JVM sin fallos; lint sin errores y AP
 
 
 Intento real autorizado con Aurora: una prueba API 23 terminó en 1,882 s con HTTP 403 durante acceso anónimo; HEAD al dispensador también devolvió 403 (Cloudflare). Sin nuevas sesiones ni evasión del rechazo. Emulador cerrado. No atribuir causa concreta ni afirmar éxito de búsqueda/descarga. Ver ../docs/validation/play-live-test.md. Etapa 3 abierta hasta que el servicio acepte la solicitud o el usuario elija otro servidor.
+
+
+El usuario autorizó continuar con las siguientes etapas pese al rechazo externo de Aurora. Etapa 4 activa desde 058dfb3, rama codex/version-catalog. La validación real pendiente de etapa 3 queda registrada; esta autorización sustituye la restricción anterior de no avanzar. Priorizar catálogo/selección y fallbacks multifuente con fixtures y pruebas JVM; conservar las comprobaciones en vivo ya válidas.

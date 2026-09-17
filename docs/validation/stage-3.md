@@ -66,4 +66,6 @@ servida realmente. La decisión del spike es continuar la implementación, con e
 go operativo condicionado a esa demostración.
 
 Los resultados de las etapas 1 y 2 se conservan y no se presentan como repetidos.
-No se abre la etapa 4 mientras falte la validación de la etapa 3.
+La restricción inicial de no abrir la etapa 4 fue sustituida por autorización
+posterior del usuario para continuar. El rechazo de Aurora sigue pendiente;
+ver [avance de etapas 4 a 6](stage-4-6.md).

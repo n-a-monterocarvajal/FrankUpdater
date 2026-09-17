@@ -2,6 +2,10 @@
 
 Cada etapa debe terminar con tests y una demostración verificable antes de abrir la siguiente.
 
+Excepción autorizada el 6 de septiembre de 2026: continuar las etapas siguientes
+mientras la validación real de Play permanece bloqueada por HTTP 403. Esa validación
+sigue pendiente; las pruebas locales de los proveedores no la sustituyen.
+
 ## 0. Fundación
 
 - Proyecto Kotlin/Compose compilable, `minSdk 23`.

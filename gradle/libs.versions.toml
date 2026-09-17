@@ -13,6 +13,8 @@ androidx-core = "1.18.0"
 gplayapi = "3.6.4"
 okhttp = "5.3.2"
 gson = "2.14.0"
+jsoup = "1.23.2"
+desugar = "2.1.5"
 
 [libraries]
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
@@ -33,6 +35,8 @@ androidx-core = { module = "androidx.core:core", version.ref = "androidx-core" }
 gplayapi = { module = "com.auroraoss:gplayapi", version.ref = "gplayapi" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
+jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
+desugar = { module = "com.android.tools:desugar_jdk_libs_nio", version.ref = "desugar" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

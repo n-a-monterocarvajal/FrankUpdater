@@ -19,13 +19,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.aurora.gplayapi.data.models.App
+import io.github.n_a_monterocarvajal.frankupdater.compatibility.CatalogEntry
+import io.github.n_a_monterocarvajal.frankupdater.compatibility.VersionCatalog
+import io.github.n_a_monterocarvajal.frankupdater.device.AndroidGenericDeviceProfileProvider
+import io.github.n_a_monterocarvajal.frankupdater.model.GenericDeviceProfile
+import io.github.n_a_monterocarvajal.frankupdater.play.playCatalogEntry
 import io.github.n_a_monterocarvajal.frankupdater.play.DeliveryExpiredException
 import io.github.n_a_monterocarvajal.frankupdater.play.PlayDownload
 import io.github.n_a_monterocarvajal.frankupdater.play.PlayProvider
@@ -51,6 +58,10 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
     var selected by remember { mutableStateOf<App?>(null) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
+    var catalogEntries by remember { mutableStateOf<List<CatalogEntry>>(emptyList()) }
+    val device by produceState<GenericDeviceProfile?>(null) {
+        value = runInterruptible(Dispatchers.IO) { AndroidGenericDeviceProfileProvider(context).getDeviceProfile() }
+    }
     val scope = rememberCoroutineScope()
 
     fun act(action: suspend () -> Unit) {
@@ -68,9 +79,25 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp).testTag("source-list"),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        item {
+            WebSourcesCard(pipeline, library, device, catalogEntries,
+                onEntries = { incoming ->
+                    val refreshed = incoming.map { it.artifact.packageName to it.artifact.source }.toSet()
+                    catalogEntries = catalogEntries.filterNot {
+                        (it.artifact.packageName to it.artifact.source) in refreshed
+                    } + incoming.distinct()
+                },
+                playConnected = provider != null && !busy,
+                onPlayVersion = { packageName, code ->
+                    act {
+                        selected = requireNotNull(provider).details(packageName)
+                        version = code.toString()
+                    }
+                })
+        }
         item { Text("Google Play", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp)) }
         item {
             if (provider == null) {
@@ -115,6 +142,18 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                         Text(app.displayName, style = MaterialTheme.typography.titleLarge)
                         Text(app.packageName)
                         Text("Versión ofrecida por Play: ${app.versionName} (${app.versionCode})")
+                        device?.let { profile ->
+                            val selection = VersionCatalog().select(app.packageName,
+                                catalogEntries.filter { it.artifact.packageName == app.packageName }, profile)
+                            Text("Última versión conocida: ${selection.latestKnownVersionCode ?: "Sin datos"}")
+                            Text("Última compatible según metadatos: ${selection.latestCompatibleVersionCode ?: "Pendiente de comprobar"}")
+                            Text("El catálogo solo incluye versiones consultadas; puede haber publicaciones más recientes.")
+                            selection.assessments.map { it.entry.artifact.versionCode }.distinct().forEach { code ->
+                                TextButton(enabled = !busy, onClick = { version = code.toString() }) {
+                                    Text("Solicitar código $code en Play")
+                                }
+                            }
+                        }
                         Text(app.shortDescription.ifBlank { app.description }.take(800))
                         Text("La identidad y la firma se comprobarán al descargar. Android confirmará si puede instalarse. " +
                             "Esta versión no representa necesariamente la última compatible.")
@@ -147,6 +186,9 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                     TextButton(enabled = !busy, onClick = {
                         act {
                             selected = requireNotNull(provider).details(app.packageName)
+                            val details = requireNotNull(selected)
+                            if (details.versionCode > 0) catalogEntries = (catalogEntries +
+                                playCatalogEntry(details.packageName, details.versionCode, details.versionName)).distinct()
                             version = ""
                         }
                     }) { Text("Ver detalles") }

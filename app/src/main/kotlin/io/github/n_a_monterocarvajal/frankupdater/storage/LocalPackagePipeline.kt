@@ -28,16 +28,26 @@ class LocalPackagePipeline(
         source: File,
         packageName: String,
         versionCode: Long,
+    ): PreparedPackageImport = importDownloadedArchive(source, "$packageName-$versionCode.apks",
+        packageName, versionCode, "https://play.google.com/store/apps/details?id=$packageName", "direct-play")
+
+    internal suspend fun importDownloadedArchive(
+        source: File,
+        displayName: String,
+        packageName: String,
+        versionCode: Long,
+        sourceUrl: String,
+        method: String,
     ): PreparedPackageImport = withContext(ioDispatcher) {
         val working = File(appContext.cacheDir, "package-read/${UUID.randomUUID()}")
         try {
-            val extracted = extractor.extract(source, "download.apks", working)
+            val extracted = extractor.extract(source, displayName, working)
             PreparedPackageImport(
                 verified = verifier.verify(extracted, VerificationExpectations(packageName, versionCode)),
-                originalName = "$packageName-$versionCode.apks",
-                sourceUri = "https://play.google.com/store/apps/details?id=$packageName",
+                originalName = displayName,
+                sourceUri = sourceUrl,
                 workingDirectory = working,
-                importMethod = "direct-play",
+                importMethod = method,
             )
         } catch (error: Exception) {
             working.deleteRecursively()

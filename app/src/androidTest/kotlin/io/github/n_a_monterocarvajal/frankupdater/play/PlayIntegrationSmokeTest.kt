@@ -5,6 +5,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.aurora.gplayapi.data.providers.DeviceInfoProvider
 import io.github.n_a_monterocarvajal.frankupdater.MainActivity
@@ -24,6 +27,11 @@ class PlayIntegrationSmokeTest {
         assertEquals(Build.VERSION.SDK_INT, provider.sdkVersion)
         assertEquals(Build.SUPPORTED_ABIS.toList(), properties.getProperty("Platforms").split(','))
         compose.onNodeWithText("Buscar").performClick()
+        compose.onNodeWithText("Historial y otras fuentes").assertIsDisplayed()
+        // Also exercises jsoup and its desugared dependencies on the minimum Android runtime.
+        assertEquals("https://www.apkmirror.com/download/", io.github.n_a_monterocarvajal.frankupdater.sources.MirrorParser.downloadPage(
+            "<a class='downloadButton' href='/download/'>Download</a>", "https://www.apkmirror.com/apk/example/app/"))
+        compose.onNodeWithTag("source-list").performScrollToNode(hasText("Acceso anónimo"))
         compose.onNodeWithText("Acceso anónimo").assertIsDisplayed()
         compose.onNodeWithText("Conectar").assertIsDisplayed()
     }

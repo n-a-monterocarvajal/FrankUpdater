@@ -85,24 +85,26 @@ components:
 
   provider.apkmirror.scraper:
     upstream: https://github.com/tanishqmanuja/apkmirror-downloader
-    integration: planned-ported
-    license: pending-file-verification
+    ref: b6bba610f180169c0c5f3eceaa6eac0660511eca
+    integration: ported
+    license: MIT
     symbols:
       - getVersions
       - getVariants
       - getFinalDownloadUrl
-    last_seen_commit: null
-    last_reviewed_commit: null
-    last_integrated_commit: null
+    last_seen_commit: b6bba610f180169c0c5f3eceaa6eac0660511eca
+    last_reviewed_commit: b6bba610f180169c0c5f3eceaa6eac0660511eca
+    last_integrated_commit: b6bba610f180169c0c5f3eceaa6eac0660511eca
 
   provider.apkpure.history:
     upstream: https://github.com/ImranR98/Obtainium
-    integration: planned-reference
+    ref: aec5dabb3f7b9aa8212f7d228344a4e722d23e89
+    integration: adapted
     license: GPL-3.0-only
-    symbols: []
-    last_seen_commit: null
-    last_reviewed_commit: null
-    last_integrated_commit: null
+    symbols: [APKPure.getLatestAPKDetails, APKPure.getDetailsForVersion, APKPure.getRequestHeaders]
+    last_seen_commit: aec5dabb3f7b9aa8212f7d228344a4e722d23e89
+    last_reviewed_commit: aec5dabb3f7b9aa8212f7d228344a4e722d23e89
+    last_integrated_commit: aec5dabb3f7b9aa8212f7d228344a4e722d23e89
 
   archive.reader:
     upstream: https://github.com/MuntashirAkon/AppManager

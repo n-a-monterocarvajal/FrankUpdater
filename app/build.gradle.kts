@@ -28,6 +28,7 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -51,6 +52,8 @@ dependencies {
     implementation(libs.gplayapi)
     implementation(libs.okhttp)
     implementation(libs.gson)
+    implementation(libs.jsoup)
+    coreLibraryDesugaring(libs.desugar)
 
     implementation(platform(libs.compose.bom))
     androidTestImplementation(platform(libs.compose.bom))
