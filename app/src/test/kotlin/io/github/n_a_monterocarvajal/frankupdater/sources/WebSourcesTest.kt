@@ -75,6 +75,14 @@ class WebSourcesTest {
         assertThrows(IllegalArgumentException::class.java) { PureParser.history("{\"version_list\":[]}", "org.example.app") }
     }
 
+    @Test fun `pure history confirms compatibility when sdk metadata is complete`() {
+        val json = """{"version_list":[{"package_name":"org.example.app","version_code":"101","version_name":"v10.1","sdk_version":"23","target_sdk_version":"34","native_code":["arm64-v8a"],"asset":{"type":"APK","url":"https://download.apkpure.com/file-101.apk"}}]}"""
+        val entry = PureParser.history(json, "org.example.app").single()
+        assertEquals(23, entry.artifact.minSdk)
+        assertEquals(34, entry.artifact.targetSdk)
+        assertTrue(entry.constraintsKnown)
+    }
+
     @Test fun `redirects drop source headers and reject foreign domains before requesting them`() {
         var calls = 0
         val client = WebSourceClient(OkHttpClient.Builder().addInterceptor { chain ->

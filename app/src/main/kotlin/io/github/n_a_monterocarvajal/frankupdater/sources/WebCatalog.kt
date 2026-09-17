@@ -131,14 +131,16 @@ internal object PureParser {
             if (size != null && size <= 0) return@mapNotNull null
             val abis = row.get("native_code")?.takeIf { it.isJsonArray }?.asJsonArray
                 ?.mapNotNull { it.takeIf { value -> value.isJsonPrimitive && value.asJsonPrimitive.isString }?.asString }.orEmpty()
+            val minSdk = string("sdk_version")?.toIntOrNull()?.takeIf { it > 0 }
+            val targetSdk = string("target_sdk_version")?.toIntOrNull()?.takeIf { it > 0 }
             CatalogEntry(ArtifactCandidate(packageName, string("version_name"), code, Source.ApkPure,
-                minSdk = string("sdk_version")?.toIntOrNull()?.takeIf { it > 0 }, maxSdk = null,
-                targetSdk = string("target_sdk_version")?.toIntOrNull()?.takeIf { it > 0 },
+                minSdk = minSdk, maxSdk = null, targetSdk = targetSdk,
                 abis = if (abis.any { it == "universal" || it == "unlimited" }) emptyList() else abis,
                 densityDpi = null, locales = emptyList(), requiredFeatures = emptySet(), packageType = type,
                 signerDigests = emptySet(), artifacts = listOf(RemoteArtifact(
                     if (type == PackageType.Xapk) "download.xapk" else "download.apk", safeUrl, hash, size)),
                 metadataUrl = "https://apkpure.com/apk/$packageName/versions", downloadMode = DownloadMode.Direct),
+                constraintsKnown = minSdk != null && targetSdk != null,
                 channel = releaseChannel(string("version_name").orEmpty()))
         }.distinct().sortedByDescending { it.artifact.versionCode }.also { require(it.isNotEmpty()) }
     }
