@@ -50,7 +50,7 @@ en 6 min 35 s: 62 pruebas JVM, cero fallos y cero errores; lint sin errores y nu
 advertencias; APK de aplicación y de instrumentación ensamblados. Log local:
 `build/stage4-6/verify-final.txt`.
 
-APK debug: 16.416.264 bytes; SHA-256
+APK debug de ese checkpoint: 16.416.264 bytes; SHA-256
 `a97b8669d11ed105272dd9f33dcdc43dab6993c0b6795d7cfb937e0b198d4fc1`.
 
 Una sola prueba offline en `Frank_API23_Phone` pasó en 4,776 s: abrió Buscar,
@@ -59,12 +59,54 @@ de Play. Resultado `OK (1 test)` en `build/stage4-6/api23-smoke.txt`. Gradle hab
 terminado antes de iniciar el emulador; se cerró este al terminar la prueba.
 No se inició Android Studio ni se solicitaron cuentas o descargas de terceros.
 
+## Comprobaciones reales desde JVM, 16 de septiembre
+
+`WebSourcesLiveTest` se ejecuta únicamente con `FRANK_LIVE_WEB=1`. Las ejecuciones
+normales omiten sus dos casos y no solicitan metadatos ni descargan aplicaciones.
+La ejecución explícita terminó en 2 min 35 s, con dos casos aprobados y ninguno
+omitido. No se abrió ningún emulador.
+
+- APKPure: `org.fossify.math`, código 10, XAPK de 6.742.497 bytes. Se comprobó el
+  tamaño y SHA-256 anunciados, se extrajeron tres APK y se verificaron sus firmas
+  con apksig para SDK 26, sus manifiestos y la coherencia de package/versión/firmante.
+  Se usó un perfil de prueba ARM64/SDK 26; no fue una instalación en Android.
+  Todos los archivos temporales se eliminaron después.
+- APKMirror: tres releases y dos variantes. La prueba inicial mostró cero códigos
+  numéricos reconocidos. La tabla pública sitúa el código en `.colorLightBlack`,
+  separado del nombre, lo que se corrigió con un fixture reducido y un test de
+  regresión. La etiqueta «Android 8.0+» se interpreta como SDK 26; las etiquetas
+  desconocidas siguen sin confirmarse. El release observado se anuncia como Beta/
+  Early Access; no se debe presentar como una publicación estable.
+
+OkHttp emitió una advertencia de detección de `android.util.Log` en el entorno de
+tests JVM y continuó con su plataforma JVM. No hubo fallos ni mocks del transporte,
+del hash o de apksig. El log local es `build/stage4-6/live-web.txt`.
+
+La corrección de APKMirror pasó cinco tests de regresión y su prueba real: tres
+releases, dos variantes y dos códigos numéricos. No se repitió la descarga de
+APKPure. Se ensambló el APK actualizado; ejecución total de 2 min 26 s, sin emulador
+(`build/stage4-6/mirror-fix.txt`). APK actual: 16.416.264 bytes, SHA-256
+`3bad47962a5f7e6aaa6ac38b999e0b566c7ffd141d027e34dbc06cf7367163ac`.
+
+El indicador de pruebas reales es una entrada explícita de Gradle y se entrega al
+proceso de tests. Las ejecuciones reales no reutilizan resultados de caché; cambiar
+el indicador invalida los resultados anteriores. Esto evita confundir un resultado
+anterior con una nueva consulta o heredar accidentalmente una ejecución real.
+La comprobación sin indicador terminó en 1 min 45 s con ambos tests omitidos,
+cero fallos y sin salida de consultas/descargas (`build/stage4-6/live-disabled.txt`).
+
+Para repetir estas comprobaciones de forma deliberada, configurar `FRANK_LIVE_WEB=1`
+solo para la invocación y ejecutar `:app:testDebugUnitTest --tests '*WebSourcesLiveTest'`.
+No añadir esa variable a CI ni a la configuración habitual.
+
 ## Pendientes para el cierre de las etapas
 
-Las etapas 4 a 6 permanecen abiertas: falta demostrar una descarga real completa
-desde cada proveedor y el fallback asistido. Los metadatos parciales no permiten
+Las etapas 4 a 6 permanecen abiertas: falta demostrar la descarga real de APKMirror
+y el fallback asistido. La descarga de APKPure y su verificación independiente de
+Android sí están demostradas. Los metadatos parciales no permiten
 afirmar automáticamente cuál es la última versión compatible; falta completar los
-requisitos necesarios para esa decisión. El catálogo no enumera páginas de historial
+requisitos necesarios para esa decisión, ni separar todavía canales estables/beta.
+El catálogo no enumera páginas de historial
 que todavía no se consultaron. Las etapas 7 y 8 no están implementadas en este cambio.
 
 No se repiten las pruebas en vivo de inventario ni de instalación de las etapas 1 y 2.

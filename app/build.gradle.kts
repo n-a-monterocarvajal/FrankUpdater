@@ -74,3 +74,14 @@ dependencies {
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation(libs.compose.ui.test.junit4)
 }
+
+tasks.withType<Test>().configureEach {
+    val liveWeb = providers.environmentVariable("FRANK_LIVE_WEB").orElse("0").get()
+    inputs.property("liveWeb", liveWeb)
+    environment("FRANK_LIVE_WEB", liveWeb)
+    // External services change independently of source files; explicit live runs must not reuse results.
+    if (liveWeb == "1") {
+        outputs.upToDateWhen { false }
+        outputs.doNotCacheIf("Explicit live provider check") { true }
+    }
+}

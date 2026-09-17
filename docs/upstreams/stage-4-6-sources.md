@@ -22,6 +22,7 @@ resolución de descarga. Se conserva el aviso de licencia en
 [apkmd-MIT.txt](licenses/apkmd-MIT.txt).
 
 No se porta `getFilteredVariant`: todas las ABI y variantes permanecen separadas.
+El código separado en `.colorLightBlack` se contrastó con una tabla pública real.
 Un código de versión ausente no se deduce del nombre del release; se solicita al
 usuario para comprobarlo contra el archivo. HTML cambiado, desafíos y enlaces
 fuera del dominio se rechazan. El fallback conserva el enlace más profundo conocido.

@@ -37,7 +37,8 @@ internal object MirrorParser {
                 cells[0].text().contains("APK", true) -> PackageType.MonolithicApk
                 else -> return@mapNotNull null
             }
-            val code = Regex("\\((\\d+)\\)").find(link.text())?.groupValues?.get(1)?.toLongOrNull()?.takeIf { it > 0 }
+            val code = (cells[0].selectFirst(".colorLightBlack")?.ownText()?.trim()?.toLongOrNull()
+                ?: Regex("\\((\\d+)\\)").find(link.text())?.groupValues?.get(1)?.toLongOrNull())?.takeIf { it > 0 }
             MirrorVariant(link.text(), cells[1].text(), cells[2].text(), cells[3].text(),
                 sourceUrl(link.absUrl("href"), Source.ApkMirror).toString(), type, code)
         }.distinct().take(200).also { require(it.isNotEmpty()) }
@@ -63,10 +64,34 @@ internal fun MirrorVariant.catalogEntry(packageName: String): CatalogEntry? {
     val code = versionCode ?: return null
     val abis = architecture.split('+', ',').map(String::trim).filter(String::isNotBlank)
     return CatalogEntry(ArtifactCandidate(packageName, name, code, Source.ApkMirror,
-        minSdk = Regex("API\\s+(\\d+)", RegexOption.IGNORE_CASE).find(minimumAndroid)?.groupValues?.get(1)?.toIntOrNull(),
+        minSdk = Regex("API\\s+(\\d+)", RegexOption.IGNORE_CASE).find(minimumAndroid)?.groupValues?.get(1)?.toIntOrNull()
+            ?: androidSdkFromLabel(minimumAndroid),
         maxSdk = null, targetSdk = null, abis = if (abis.any { it.equals("universal", true) || it.equals("noarch", true) }) emptyList() else abis,
         densityDpi = null, locales = emptyList(), requiredFeatures = emptySet(), packageType = type,
         signerDigests = emptySet(), artifacts = emptyList(), metadataUrl = url, downloadMode = DownloadMode.ResolvableDirect))
+}
+
+/** Only recognized Android release labels; unknown labels remain unknown, never a float comparison. */
+private fun androidSdkFromLabel(label: String): Int? {
+    val version = Regex("Android\\s+(\\d+(?:\\.\\d+)?L?)\\+?", RegexOption.IGNORE_CASE)
+        .find(label)?.groupValues?.get(1)?.uppercase() ?: return null
+    return when (version) {
+        "6", "6.0" -> 23
+        "7", "7.0" -> 24
+        "7.1" -> 25
+        "8", "8.0" -> 26
+        "8.1" -> 27
+        "9", "9.0" -> 28
+        "10", "10.0" -> 29
+        "11", "11.0" -> 30
+        "12", "12.0" -> 31
+        "12L", "12.1" -> 32
+        "13", "13.0" -> 33
+        "14", "14.0" -> 34
+        "15", "15.0" -> 35
+        "16", "16.0" -> 36
+        else -> null
+    }
 }
 
 /** Obtainium's version_list and asset contract, retaining every numeric version and ABI variant. */
