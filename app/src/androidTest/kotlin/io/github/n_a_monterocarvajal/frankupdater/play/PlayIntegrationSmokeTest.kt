@@ -31,7 +31,7 @@ class PlayIntegrationSmokeTest {
         // Also exercises jsoup and its desugared dependencies on the minimum Android runtime.
         assertEquals("https://www.apkmirror.com/download/", io.github.n_a_monterocarvajal.frankupdater.sources.MirrorParser.downloadPage(
             "<a class='downloadButton' href='/download/'>Download</a>", "https://www.apkmirror.com/apk/example/app/"))
-        compose.onNodeWithTag("source-list").performScrollToNode(hasText("Acceso anónimo"))
+        compose.onNodeWithTag("source-list").performScrollToNode(hasText("Conectar"))
         compose.onNodeWithText("Acceso anónimo").assertIsDisplayed()
         compose.onNodeWithText("Conectar").assertIsDisplayed()
     }
