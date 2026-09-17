@@ -53,14 +53,13 @@ components:
 
   update.selection:
     upstream: https://github.com/f-droid/fdroidclient
-    integration: planned-adapted
-    license: GPL-3.0-only
-    symbols:
-      - UpdateChecker
-    last_seen_commit: null
-    last_reviewed_commit: null
-    last_integrated_commit: null
-
+    ref: f71539794471a123441de16c775f7ff5ecaef460
+    integration: adapted
+    license: Apache-2.0
+    symbols: [UpdateChecker.getUpdates, UpdateChecker.getSuggestedVersion]
+    last_seen_commit: f71539794471a123441de16c775f7ff5ecaef460
+    last_reviewed_commit: f71539794471a123441de16c775f7ff5ecaef460
+    last_integrated_commit: f71539794471a123441de16c775f7ff5ecaef460
   provider.play:
     upstream: https://gitlab.com/AuroraOSS/gplayapi
     ref: 18ec2bd74995d30e500b756359a4de3e37976f03
