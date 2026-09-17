@@ -27,6 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import android.content.Intent
+import android.net.Uri
 import com.aurora.gplayapi.data.models.App
 import io.github.n_a_monterocarvajal.frankupdater.compatibility.CatalogEntry
 import io.github.n_a_monterocarvajal.frankupdater.compatibility.VersionCatalog
@@ -36,6 +38,8 @@ import io.github.n_a_monterocarvajal.frankupdater.play.playCatalogEntry
 import io.github.n_a_monterocarvajal.frankupdater.play.DeliveryExpiredException
 import io.github.n_a_monterocarvajal.frankupdater.play.PlayDownload
 import io.github.n_a_monterocarvajal.frankupdater.play.PlayProvider
+import io.github.n_a_monterocarvajal.frankupdater.play.PlayCredentialStore
+import io.github.n_a_monterocarvajal.frankupdater.play.PlayCredentials
 import io.github.n_a_monterocarvajal.frankupdater.play.playDeviceProperties
 import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackageLibrary
 import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackagePipeline
@@ -53,6 +57,10 @@ import kotlinx.coroutines.runInterruptible
 internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibrary) {
     val context = LocalContext.current.applicationContext
     val preferences = remember { context.getSharedPreferences("play", 0) }
+    val credentialStore = remember { PlayCredentialStore(context) }
+    var savedPersonal by remember { mutableStateOf(credentialStore.load()) }
+    var email by remember { mutableStateOf(savedPersonal?.email.orEmpty()) }
+    var aasToken by remember { mutableStateOf(savedPersonal?.aasToken.orEmpty()) }
     var endpoint by rememberSaveable { mutableStateOf(preferences.getString("anonymous_server", "").orEmpty()) }
     var query by rememberSaveable { mutableStateOf("") }
     var version by rememberSaveable { mutableStateOf("") }
@@ -106,6 +114,29 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
         item {
             if (provider == null) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Cuenta personal de Google Play")
+                    Text("Usa el correo y AAS token generados por un flujo compatible con Aurora. La contrasena no se guarda.")
+                    OutlinedTextField(email, { email = it }, label = { Text("Correo de Google") },
+                        singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(aasToken, { aasToken = it }, label = { Text("AAS token") },
+                        singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+                    Button(enabled = !busy && email.contains('@') && aasToken.isNotBlank(), onClick = {
+                        act {
+                            val properties = runInterruptible(Dispatchers.IO) { playDeviceProperties(context) }
+                            val credentials = PlayCredentials(email.trim(), aasToken.trim())
+                            provider = PlayProvider.personal(credentials, properties, Locale.getDefault())
+                            credentialStore.save(credentials)
+                            savedPersonal = credentials
+                            message = "Cuenta personal conectada."
+                        }
+                    }) { Text("Conectar cuenta personal") }
+                    if (savedPersonal != null) TextButton(enabled = !busy, onClick = {
+                        credentialStore.clear()
+                        savedPersonal = null
+                        email = ""
+                        aasToken = ""
+                    }) { Text("Borrar cuenta guardada") }
+                    Text("Acceso anonimo opcional")
                     Text("Acceso anónimo")
                     Text("Introduce un servidor compatible. Al conectar, se compartirá el perfil del dispositivo " +
                         "con ese servidor y Google para obtener aplicaciones adecuadas. No necesitas una cuenta personal.")
@@ -145,6 +176,9 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(app.displayName, style = MaterialTheme.typography.titleLarge)
                         Text(app.packageName)
+                        TextButton(enabled = !busy, onClick = { openPlayStore(context, app.packageName) }) {
+                            Text("Abrir en Play Store")
+                        }
                         Text("Versión ofrecida por Play: ${app.versionName} (${app.versionCode})")
                         device?.let { profile ->
                             val selection = VersionCatalog().select(app.packageName,
@@ -205,4 +239,14 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
             }
         }
     }
+}
+
+private fun openPlayStore(context: android.content.Context, packageName: String) {
+    val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
+        .setPackage("com.android.vending")
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    val fallback = Intent(Intent.ACTION_VIEW,
+        Uri.parse("https://play.google.com/store/apps/details?id=$packageName"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(market) }.getOrElse { context.startActivity(fallback) }
 }

@@ -65,6 +65,20 @@ internal class PlayProvider private constructor(
             PlayProvider(auth, http)
         }
 
+        suspend fun personal(
+            credentials: PlayCredentials,
+            properties: Properties,
+            locale: Locale,
+            http: IHttpClient = PlayHttpClient(),
+        ): PlayProvider = runInterruptible(Dispatchers.IO) {
+            require(credentials.email.contains('@') && credentials.aasToken.isNotBlank())
+            val auth = synchronized(AuthHelper) {
+                AuthHelper.using(http).build(credentials.email, credentials.aasToken,
+                    AuthHelper.Token.AAS, false, properties, locale)
+            }
+            PlayProvider(auth, http)
+        }
+
         fun parseAnonymousResponse(bytes: ByteArray): Pair<String, String> {
             require(bytes.size <= 64 * 1024) { "Respuesta de acceso anónimo demasiado grande." }
             val json = JsonParser.parseString(bytes.toString(Charsets.UTF_8)).asJsonObject
