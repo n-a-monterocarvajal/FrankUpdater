@@ -40,6 +40,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import io.github.n_a_monterocarvajal.frankupdater.installer.InstallRequestResult
+import io.github.n_a_monterocarvajal.frankupdater.installer.InstallerRouter
+import io.github.n_a_monterocarvajal.frankupdater.installer.InstallerMode
 import io.github.n_a_monterocarvajal.frankupdater.installer.InstallationEvent
 import io.github.n_a_monterocarvajal.frankupdater.installer.InstallationEvents
 import io.github.n_a_monterocarvajal.frankupdater.installer.SystemSessionInstaller
@@ -75,6 +77,7 @@ internal fun LibraryRoute(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val router = remember { InstallerRouter(context, sessionInstaller) }
     var reloadToken by remember { mutableIntStateOf(0) }
     var selected by remember { mutableStateOf<PreparedPackageImport?>(null) }
     var selectedRetained by remember { mutableStateOf(false) }
@@ -152,6 +155,13 @@ internal fun LibraryRoute(
     ) {
         installMessage = "Permiso revisado. Pulsa instalar de nuevo para continuar."
     }
+    val legacyInstaller = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        scope.launch {
+            handleInstallationEvent(if (result.resultCode == android.app.Activity.RESULT_OK)
+                InstallationEvent.Success(-1, selected?.verified?.packageName)
+            else InstallationEvent.Failure(-1, result.resultCode, "Instalación cancelada o rechazada."))
+        }
+    }
 
     LaunchedEffect(Unit) {
         InstallationEvents.events.collect { event ->
@@ -180,10 +190,36 @@ internal fun LibraryRoute(
             }
             Button(
                 onClick = { documentPicker.launch(packageMimeTypes) },
-                enabled = !importing,
+                enabled = !importing && !installing,
             ) {
                 Text("Importar")
             }
+        }
+
+        if (router.preferences.mode == InstallerMode.Root || router.preferences.mode == InstallerMode.Shizuku) {
+            Button(enabled = !importing && !installing && entries.isNotEmpty(), modifier = Modifier.padding(horizontal = 20.dp), onClick = {
+                scope.launch {
+                    installing = true
+                    var completed = 0
+                    try {
+                        for (entry in entries.groupBy { it.packageName }.values.map { group -> group.maxBy { it.versionCode } }) {
+                            pipeline.prepare(entry).use { prepared ->
+                                if (prepared.verified.installAction == InstallAction.Update) {
+                                    check(router.install(prepared.verified) == InstallRequestResult.Finished)
+                                    completed++
+                                    if (retentionPreferences.policy == PackageRetentionPolicy.DeleteAutomatically)
+                                        withContext(Dispatchers.IO) { check(library.delete(entry)) }
+                                }
+                            }
+                        }
+                        errorMessage = null
+                        installMessage = "$completed actualizaciones completadas. Los archivos restantes se conservan en Biblioteca."
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (error: Exception) { errorMessage = "Lote detenido tras $completed actualizaciones: ${error.message}" }
+                    finally { installing = false; reloadToken++ }
+                }
+            }) { Text("Actualizar desde biblioteca por lotes") }
+            if (selected == null) installMessage?.let { Text(it, Modifier.padding(horizontal = 20.dp)) }
         }
 
         if (importing) {
@@ -217,7 +253,15 @@ internal fun LibraryRoute(
                         installing = true
                         installMessage = "Preparando la sesión de instalación…"
                         try {
-                            when (val result = sessionInstaller.install(prepared.verified)) {
+                            when (val result = router.install(prepared.verified)) {
+                                InstallRequestResult.Finished -> {
+                                    activeSessionId = -1
+                                    handleInstallationEvent(InstallationEvent.Success(-1, prepared.verified.packageName))
+                                }
+                                is InstallRequestResult.Legacy -> {
+                                    activeSessionId = -1
+                                    legacyInstaller.launch(result.intent)
+                                }
                                 is InstallRequestResult.Committed -> {
                                     activeSessionId = result.sessionId
                                     installMessage = "Sesión enviada a Android."
@@ -271,6 +315,7 @@ internal fun LibraryRoute(
                 items(entries, key = PackageLibraryEntry::id) { entry ->
                     RetainedPackageCard(
                         entry = entry,
+                        enabled = !installing && !importing,
                         onReinstall = {
                             scope.launch {
                                 importing = true
@@ -361,10 +406,10 @@ private fun VerifiedImportCard(
                         },
                     )
                 }
-                Button(onClick = onRetain, enabled = !retained) {
+                Button(onClick = onRetain, enabled = !retained && !installing) {
                     Text(if (retained) "Conservado" else "Conservar")
                 }
-                OutlinedButton(onClick = onDiscard) { Text("Descartar") }
+                OutlinedButton(onClick = onDiscard, enabled = !installing) { Text("Descartar") }
             }
             installMessage?.let {
                 Text(it, modifier = Modifier.padding(top = 10.dp))
@@ -383,6 +428,7 @@ private fun VerifiedImportCard(
 @Composable
 private fun RetainedPackageCard(
     entry: PackageLibraryEntry,
+    enabled: Boolean,
     onReinstall: () -> Unit,
     onShare: () -> Unit,
     onDelete: () -> Unit,
@@ -409,9 +455,9 @@ private fun RetainedPackageCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(top = 10.dp),
             ) {
-                Button(onClick = onReinstall) { Text("Reinstalar") }
-                OutlinedButton(onClick = onShare) { Text("Compartir") }
-                TextButton(onClick = onDelete) { Text("Eliminar") }
+                Button(onClick = onReinstall, enabled = enabled) { Text("Reinstalar") }
+                OutlinedButton(onClick = onShare, enabled = enabled) { Text("Compartir") }
+                TextButton(onClick = onDelete, enabled = enabled) { Text("Eliminar") }
             }
         }
     }

@@ -19,6 +19,7 @@ internal data class BinaryManifestMetadata(
     val splitName: String?,
     val minSdk: Int?,
     val targetSdk: Int?,
+    val constraints: ManifestConstraints = ManifestConstraints(complete = false),
 )
 
 internal class BinaryManifestMetadataReader {
@@ -52,6 +53,7 @@ internal class BinaryManifestMetadataReader {
             targetSdk = runCatching {
                 ApkUtils.getTargetSdkVersionFromBinaryAndroidManifest(manifestBuffer())
             }.getOrNull(),
+            constraints = readManifestConstraints(bytes),
         )
     }
 
@@ -60,6 +62,76 @@ internal class BinaryManifestMetadataReader {
         const val MAX_MANIFEST_BYTES = 2 * 1024 * 1024
         const val SPLIT_ATTRIBUTE = "split"
     }
+}
+
+internal data class ManifestConstraints(
+    val maxSdk: Int? = null,
+    val requiredFeatures: Set<String> = emptySet(),
+    val complete: Boolean = true,
+)
+
+/** Reuses the bounded AXML reader. Resource references and unsupported requirements stay unresolved. */
+internal fun readManifestConstraints(bytes: ByteArray): ManifestConstraints {
+    val input = LittleEndianBytes(bytes)
+    require(input.u16(0) == 3)
+    val header = input.u16(2)
+    val end = input.chunkSize(0, header)
+    var offset = header
+    var pool: BinaryStringPool? = null
+    var complete = true
+    var maxSdk: Int? = null
+    val features = mutableSetOf<String>()
+    while (offset < end) {
+        val type = input.u16(offset)
+        val size = input.u16(offset + 2)
+        val chunk = input.chunkSize(offset, size, end)
+        if (type == 1) pool = BinaryStringPool(input, offset, size, chunk)
+        if (type == 0x0102) {
+            val strings = requireNotNull(pool)
+            val extension = offset + size
+            input.requireRange(extension, 20, offset + chunk)
+            val name = strings.string(input.u32Index(extension + 4))
+            val start = extension + input.u16(extension + 8)
+            val stride = input.u16(extension + 10)
+            require(stride >= 20)
+            val attributes = mutableMapOf<String, String?>()
+            repeat(input.u16(extension + 12)) { index ->
+                val at = start + index * stride
+                input.requireRange(at, stride, offset + chunk)
+                val namespace = input.u32(at)
+                if (namespace == 0xffffffffL || strings.string(input.index(namespace)) == "http://schemas.android.com/apk/res/android") {
+                    val key = strings.string(input.u32Index(at + 4))
+                    val value = input.u32(at + 16)
+                    attributes[key] = when (input.u8(at + 15)) {
+                        3 -> strings.string(input.index(value))
+                        16, 17, 18 -> value.toString()
+                        else -> null
+                    }
+                }
+            }
+            fun required(): Boolean = when (attributes["required"]) {
+                "0", "false" -> false
+                else -> true
+            }
+            when (name) {
+                "uses-sdk" -> if ("maxSdkVersion" in attributes) {
+                    maxSdk = attributes["maxSdkVersion"]?.toIntOrNull()?.takeIf { it > 0 }
+                    if (maxSdk == null) complete = false
+                }
+                "uses-feature" -> if (required()) {
+                    val feature = attributes["name"]
+                    if (feature.isNullOrBlank()) complete = false else features += feature
+                    if ("glEsVersion" in attributes || ("version" in attributes && attributes["version"] != "0")) complete = false
+                }
+                "uses-library", "uses-native-library", "uses-static-library", "uses-sdk-library", "uses-split" ->
+                    if (required()) complete = false
+                "compatible-screens", "supports-gl-texture" -> complete = false
+                "manifest", "application" -> if ("isSplitRequired" in attributes && attributes["isSplitRequired"] !in listOf("0", "false")) complete = false
+            }
+        }
+        offset += chunk
+    }
+    return ManifestConstraints(maxSdk, features, complete)
 }
 
 /** Reads one un-namespaced attribute from the root element of Android binary XML. */

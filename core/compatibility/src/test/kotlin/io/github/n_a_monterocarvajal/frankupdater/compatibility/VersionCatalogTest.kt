@@ -8,6 +8,16 @@ class VersionCatalogTest {
     private val device = GenericDeviceProfile(26, "REL", listOf("arm64-v8a", "armeabi-v7a"), 420, listOf("es-CL"), emptySet())
     private val catalog = VersionCatalog()
 
+    @Test fun `preview releases require opt in without hiding the latest publication`() {
+        val entries = listOf(entry(100, Source.ApkMirror).copy(channel = ReleaseChannel.Preview),
+            entry(99, Source.ApkPure))
+        val stable = catalog.select("org.example.app", entries, device)
+        assertEquals(100L, stable.latestKnownVersionCode)
+        assertEquals(99L, stable.latestCompatibleVersionCode)
+        assertTrue(stable.sourcesFor(100).isEmpty())
+        assertEquals(100L, catalog.select("org.example.app", entries, device, includePreviews = true).latestCompatibleVersionCode)
+    }
+
     @Test fun `numeric version order beats labels and provider priority`() {
         val result = catalog.select("org.example.app", listOf(
             entry(10, Source.GooglePlay), entry(100, Source.ApkPure, minSdk = 28), entry(99, Source.ApkMirror)), device)

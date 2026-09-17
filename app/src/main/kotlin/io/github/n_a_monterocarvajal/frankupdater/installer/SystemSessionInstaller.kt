@@ -28,6 +28,8 @@ sealed interface InstallRequestResult {
     data class Committed(val sessionId: Int) : InstallRequestResult
 
     data class PermissionRequired(val settingsIntent: Intent) : InstallRequestResult
+    data class Legacy(val intent: Intent) : InstallRequestResult
+    data object Finished : InstallRequestResult
 }
 
 class SystemSessionInstaller(
@@ -62,7 +64,7 @@ class SystemSessionInstaller(
             }
         }
 
-    private fun permissionIntent(): Intent? =
+    internal fun permissionIntent(): Intent? =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !appContext.packageManager.canRequestPackageInstalls()
         ) {

@@ -4,7 +4,7 @@ Cliente Android libre para encontrar, verificar e instalar la versión más reci
 
 ## Estado
 
-Las etapas 0, 1 y 2 están completadas. La validación real de Google Play sigue
+Las etapas 0, 1, 2, 4, 5, 6, 7 y 8 están implementadas y validadas localmente. La validación real de Google Play sigue
 pendiente tras un HTTP 403 del servidor anónimo. El desarrollo continúa con
 catálogo multifuente y proveedores web (etapas 4 a 6).
 La base actual contiene:
@@ -30,7 +30,7 @@ del servicio vivo sigue pendiente. Consulta el [ADR de Play](docs/adr/0004-googl
 Buscar también incorpora historial de APKMirror/APKPure, selección por código de
 versión, descarga verificada y alternativas web/navegador con importación. Los
 requisitos desconocidos se muestran como pendientes, sin afirmar compatibilidad.
-El alcance probado y los pendientes están en [etapas 4 a 6](docs/validation/stage-4-6.md).
+El alcance probado y los pendientes de las fuentes web están en [etapas 4 a 6](docs/validation/stage-4-6.md). Los instaladores y comprobaciones periódicas están documentados en [etapa 7](docs/validation/stage-7.md) y el mantenimiento de upstreams en [etapa 8](docs/validation/stage-8.md).
 
 La especificación fundante está en [`docs/spec/ANDROID_COMPAT_UPDATER_SPEC.md`](docs/spec/ANDROID_COMPAT_UPDATER_SPEC.md) y la secuencia de implementación en [`docs/ROADMAP.md`](docs/ROADMAP.md).
 

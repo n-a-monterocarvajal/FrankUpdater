@@ -173,7 +173,7 @@ private fun DestinationContent(
             )
         }
         when (destination) {
-            NavigationDestination.Updates -> InventoryRoute(
+            NavigationDestination.Updates -> UpdatesRoute(
                 installedAppRepository,
                 deviceProfileProvider,
                 Modifier.fillMaxSize(),

@@ -1,0 +1,37 @@
+name: Upstream watch
+
+on:
+  schedule:
+    - cron: '23 8 * * 1'
+  workflow_dispatch:
+  pull_request:
+    paths: ['scripts/upstream-watch/**', 'UPSTREAMS.yml', '.github/workflows/upstream-watch.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix scripts/upstream-watch --ignore-scripts
+      - run: npm test --prefix scripts/upstream-watch
+      - name: Inspect public upstreams
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/upstream-watch/watch.mjs
+      - name: Validate manifest without network
+        if: github.event_name == 'pull_request'
+        run: node scripts/upstream-watch/watch.mjs --offline
+      - name: Job dashboard
+        run: cat build/upstream-watch/dashboard.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upstream-watch
+          path: build/upstream-watch/

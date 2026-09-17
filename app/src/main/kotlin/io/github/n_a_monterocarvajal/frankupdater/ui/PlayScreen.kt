@@ -39,6 +39,9 @@ import io.github.n_a_monterocarvajal.frankupdater.play.PlayProvider
 import io.github.n_a_monterocarvajal.frankupdater.play.playDeviceProperties
 import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackageLibrary
 import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackagePipeline
+import io.github.n_a_monterocarvajal.frankupdater.verification.catalogEntry
+import io.github.n_a_monterocarvajal.frankupdater.compatibility.ReleaseChannel
+import io.github.n_a_monterocarvajal.frankupdater.model.Source
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -90,6 +93,7 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                         (it.artifact.packageName to it.artifact.source) in refreshed
                     } + incoming.distinct()
                 },
+                onVerified = { catalogEntries = (catalogEntries + it).distinct() },
                 playConnected = provider != null && !busy,
                 onPlayVersion = { packageName, code ->
                     act {
@@ -168,6 +172,11 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                                 val archive = runInterruptible(Dispatchers.IO) { PlayDownload().download(files, directory) }
                                 pipeline.importPlayDownload(archive, app.packageName, requested).use { prepared ->
                                     runInterruptible(Dispatchers.IO) { library.retain(prepared) }
+                                    val verifiedEntry = runInterruptible(Dispatchers.IO) {
+                                        prepared.verified.catalogEntry(Source.GooglePlay,
+                                            "https://play.google.com/store/apps/details?id=${app.packageName}", ReleaseChannel.Unknown)
+                                    }
+                                    catalogEntries = (catalogEntries + verifiedEntry).distinct()
                                 }
                                 runInterruptible(Dispatchers.IO) { directory.deleteRecursively() }
                                 message = "Paquete verificado y guardado. Abre Biblioteca para instalarlo."

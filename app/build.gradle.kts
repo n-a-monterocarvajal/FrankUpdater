@@ -35,6 +35,7 @@ android {
 
     buildFeatures {
         compose = true
+        aidl = true
     }
 
     packaging {
@@ -53,6 +54,9 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.gson)
     implementation(libs.jsoup)
+    implementation(libs.work.runtime)
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
     coreLibraryDesugaring(libs.desugar)
 
     implementation(platform(libs.compose.bom))

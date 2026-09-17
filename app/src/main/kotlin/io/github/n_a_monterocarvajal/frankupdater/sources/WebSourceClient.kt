@@ -79,7 +79,9 @@ internal class WebSourceClient(client: OkHttpClient = OkHttpClient()) {
                 // Provider-specific metadata headers are never forwarded to a redirect destination.
                 if (attempt == 0) headers.forEach { (name, value) -> header(name, value) }
             }.build()
-            val response = client.newCall(request).execute()
+            val response = client.newCall(request).apply {
+                if (!download) timeout().timeout(30, TimeUnit.SECONDS)
+            }.execute()
             if (response.code in setOf(301, 302, 303, 307, 308)) {
                 response.use {
                     val next = current.resolve(it.header("Location") ?: throw IOException("Redirección incompleta."))

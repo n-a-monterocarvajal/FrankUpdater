@@ -17,3 +17,4 @@ local.properties
 *.apks
 *.apkm
 *.xapk
+node_modules/

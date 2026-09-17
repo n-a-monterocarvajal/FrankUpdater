@@ -18,18 +18,21 @@ import io.github.n_a_monterocarvajal.frankupdater.sources.*
 import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackageLibrary
 import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackagePipeline
 import io.github.n_a_monterocarvajal.frankupdater.verification.VerificationExpectations
+import io.github.n_a_monterocarvajal.frankupdater.verification.catalogEntry
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.*
 
 private data class WebChoice(val packageName: String, val versionCode: Long?, val source: Source,
     val type: PackageType, val url: String, val directUrl: String? = null,
-    val sha256: String? = null, val sizeBytes: Long? = null)
+    val sha256: String? = null, val sizeBytes: Long? = null,
+    val channel: ReleaseChannel = ReleaseChannel.Unknown)
 
 @Composable
 internal fun WebSourcesCard(
     pipeline: LocalPackagePipeline, library: LocalPackageLibrary, device: GenericDeviceProfile?,
     entries: List<CatalogEntry>, onEntries: (List<CatalogEntry>) -> Unit,
+    onVerified: (CatalogEntry) -> Unit,
     playConnected: Boolean, onPlayVersion: (String, Long) -> Unit,
 ) {
     val context = LocalContext.current
@@ -42,6 +45,7 @@ internal fun WebSourcesCard(
     var choice by remember { mutableStateOf<WebChoice?>(null) }
     var code by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var includePreviews by rememberSaveable { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var failedSources by remember { mutableStateOf<Set<Source>>(emptySet()) }
     var pendingImport by remember { mutableStateOf<WebChoice?>(null) }
@@ -64,7 +68,12 @@ internal fun WebSourcesCard(
             }
             pipeline.importDownloadedArchive(archive, "${selected.packageName}-$expectedCode.$extension",
                 selected.packageName, expectedCode, selected.url, if (capturedUrl == null) "direct-${selected.source.name}" else "assisted-web").use {
-                prepared -> runInterruptible(Dispatchers.IO) { library.retain(prepared) }
+                prepared ->
+                val verifiedEntry = runInterruptible(Dispatchers.IO) {
+                    library.retain(prepared)
+                    prepared.verified.catalogEntry(selected.source, selected.url, selected.channel)
+                }
+                onVerified(verifiedEntry)
             }
             message = "Paquete verificado y guardado en Biblioteca."
         } finally { withContext(Dispatchers.IO + NonCancellable) { directory.deleteRecursively() } }
@@ -93,6 +102,9 @@ internal fun WebSourcesCard(
                 require(expected.sha256 == null || expected.sha256.equals(prepared.verified.sourceSha256, ignoreCase = true))
                 require(expected.sizeBytes == null || expected.sizeBytes == prepared.verified.sourceSizeBytes)
                 runInterruptible(Dispatchers.IO) { library.retain(prepared) }
+                onVerified(runInterruptible(Dispatchers.IO) {
+                    prepared.verified.catalogEntry(expected.source, expected.url, expected.channel)
+                })
             }
             message = "Paquete verificado y guardado en Biblioteca."
         }
@@ -166,27 +178,39 @@ internal fun WebSourcesCard(
             }
             variants.take(shown).forEach { variant ->
                 TextButton(enabled = !busy, onClick = {
-                    select(WebChoice(packageName, variant.versionCode, Source.ApkMirror, variant.type, variant.url))
+                    select(WebChoice(packageName, variant.versionCode, Source.ApkMirror, variant.type, variant.url, channel = variant.channel))
                 }) { Text("${variant.name} · ${variant.architecture} · ${variant.minimumAndroid} · ${variant.density} · ${variant.type}") }
             }
             device?.let { profile ->
+                Row {
+                    Checkbox(includePreviews, onCheckedChange = { includePreviews = it })
+                    Text("Incluir versiones preliminares (alpha/beta/RC)")
+                }
                 val selection = VersionCatalog().select(packageName.ifBlank { "unknown.app" },
-                    entries.filter { it.artifact.packageName == packageName }, profile, unavailableSources = failedSources)
+                    entries.filter { it.artifact.packageName == packageName }, profile, unavailableSources = failedSources,
+                    includePreviews = includePreviews)
                 if (selection.assessments.isNotEmpty()) {
                     Text("Última versión conocida: ${selection.latestKnownVersionCode}")
                     Text("Última compatible según metadatos: ${selection.latestCompatibleVersionCode ?: "Pendiente de comprobar"}")
                     Text("El historial puede estar incompleto. Los metadatos no sustituyen la verificación del archivo.")
+                    if (selection.hasUnresolvedNewerVersion) Text("Hay versiones superiores pendientes de comprobar.")
                 }
                 selection.assessments.take(shown).forEach { assessment ->
                     val artifact = assessment.entry.artifact
                     Text("${artifact.versionName.orEmpty()} (${artifact.versionCode}) · ${artifact.source} · " +
                         "${artifact.abis.ifEmpty { listOf("ABI no especificada") }.joinToString()} · ${artifact.packageType}")
+                    Text(when (assessment.entry.channel) {
+                        ReleaseChannel.Preview -> "Canal preliminar"
+                        ReleaseChannel.Stable -> "Canal estable"
+                        ReleaseChannel.Unknown -> "Canal no confirmado"
+                    })
                     if (assessment.incompatibilities.isNotEmpty()) Text("No compatible: ${assessment.incompatibilities.joinToString()}")
-                    else {
-                        if (artifact.source != Source.GooglePlay) TextButton(enabled = !busy, onClick = {
+                    else if (assessment.channelAllowed) {
+                        if (artifact.source != Source.GooglePlay && artifact.downloadMode != DownloadMode.Unavailable) TextButton(enabled = !busy, onClick = {
                             select(WebChoice(packageName, artifact.versionCode, artifact.source, artifact.packageType,
                                 requireNotNull(artifact.metadataUrl), artifact.artifacts.firstOrNull()?.uri,
-                                artifact.artifacts.firstOrNull()?.sha256, artifact.artifacts.firstOrNull()?.sizeBytes))
+                                artifact.artifacts.firstOrNull()?.sha256, artifact.artifacts.firstOrNull()?.sizeBytes,
+                                assessment.entry.channel))
                         }) { Text("Elegir esta variante") }
                         TextButton(enabled = !busy && playConnected, onClick = {
                             onPlayVersion(packageName, artifact.versionCode)

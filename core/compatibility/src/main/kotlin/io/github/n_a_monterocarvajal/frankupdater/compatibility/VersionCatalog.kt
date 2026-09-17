@@ -11,14 +11,21 @@ import io.github.n_a_monterocarvajal.frankupdater.model.GenericDeviceProfile
 import io.github.n_a_monterocarvajal.frankupdater.model.Source
 
 /** True only when the source supplied all compatibility fields represented by ArtifactCandidate. */
-data class CatalogEntry(val artifact: ArtifactCandidate, val constraintsKnown: Boolean = false)
+enum class ReleaseChannel { Unknown, Stable, Preview }
+
+data class CatalogEntry(
+    val artifact: ArtifactCandidate,
+    val constraintsKnown: Boolean = false,
+    val channel: ReleaseChannel = ReleaseChannel.Unknown,
+)
 
 data class CatalogAssessment(
     val entry: CatalogEntry,
     val incompatibilities: Set<IncompatibilityReason>,
     val needsMetadata: Boolean,
+    val channelAllowed: Boolean = true,
 ) {
-    val compatibleByMetadata: Boolean get() = incompatibilities.isEmpty() && !needsMetadata
+    val compatibleByMetadata: Boolean get() = incompatibilities.isEmpty() && !needsMetadata && channelAllowed
 }
 
 data class VersionSelection(
@@ -33,7 +40,7 @@ data class VersionSelection(
     val suggestedUpdateVersionCode: Long? get() = latestCompatibleVersionCode
         ?.takeIf { installedVersionCode == null || it > installedVersionCode }
     val hasUnresolvedNewerVersion: Boolean get() = assessments.any {
-        it.needsMetadata && it.incompatibilities.isEmpty() &&
+        it.channelAllowed && it.needsMetadata && it.incompatibilities.isEmpty() &&
             (latestCompatibleVersionCode == null || it.entry.artifact.versionCode > latestCompatibleVersionCode!!)
     }
 
@@ -55,6 +62,7 @@ class VersionCatalog(private val checker: CompatibilityChecker = BaseCompatibili
         device: GenericDeviceProfile,
         installedVersionCode: Long? = null,
         unavailableSources: Set<Source> = emptySet(),
+        includePreviews: Boolean = false,
     ): VersionSelection {
         require(packageName.isNotBlank())
         require(installedVersionCode == null || installedVersionCode >= 0)
@@ -67,7 +75,8 @@ class VersionCatalog(private val checker: CompatibilityChecker = BaseCompatibili
             var reasons = (result as? CompatibilityResult.Incompatible)?.reasons.orEmpty()
             // A missing target in partial provider metadata is unknown, not a targetSdk of 1.
             if (!entry.constraintsKnown && artifact.targetSdk == null) reasons = reasons - IncompatibilityReason.TargetSdk
-            CatalogAssessment(entry, reasons, !entry.constraintsKnown || artifact.minSdk == null)
+            CatalogAssessment(entry, reasons, !entry.constraintsKnown || artifact.minSdk == null,
+                includePreviews || entry.channel != ReleaseChannel.Preview)
         }
         return VersionSelection(assessments, unavailableSources, installedVersionCode)
     }

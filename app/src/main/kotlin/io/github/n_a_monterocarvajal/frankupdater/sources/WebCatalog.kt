@@ -3,6 +3,7 @@ package io.github.n_a_monterocarvajal.frankupdater.sources
 
 import com.google.gson.JsonParser
 import io.github.n_a_monterocarvajal.frankupdater.compatibility.CatalogEntry
+import io.github.n_a_monterocarvajal.frankupdater.compatibility.ReleaseChannel
 import io.github.n_a_monterocarvajal.frankupdater.model.*
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -12,7 +13,12 @@ internal data class WebRelease(val name: String, val url: String)
 internal data class MirrorVariant(
     val name: String, val architecture: String, val minimumAndroid: String,
     val density: String, val url: String, val type: PackageType, val versionCode: Long?,
+    val channel: ReleaseChannel = ReleaseChannel.Unknown,
 )
+
+internal fun releaseChannel(label: String): ReleaseChannel =
+    if (Regex("(?i)\\b(alpha|beta|early[ -]access|preview|rc[0-9]*)\\b").containsMatchIn(label))
+        ReleaseChannel.Preview else ReleaseChannel.Unknown
 
 /** Ports APKMD table selectors; intentionally does not port getFilteredVariant. */
 internal object MirrorParser {
@@ -27,7 +33,9 @@ internal object MirrorParser {
     }
 
     fun variants(html: String, url: String): List<MirrorVariant> {
-        val table = requireNotNull(document(html, url).selectFirst(".variants-table"))
+        val parsed = document(html, url)
+        val channel = releaseChannel(parsed.title() + " " + parsed.select("h1").text() + " " + url)
+        val table = requireNotNull(parsed.selectFirst(".variants-table"))
         return table.children().mapNotNull { row ->
             val cells = row.select(".table-cell")
             val link = cells.firstOrNull()?.selectFirst("a[href]") ?: return@mapNotNull null
@@ -40,7 +48,8 @@ internal object MirrorParser {
             val code = (cells[0].selectFirst(".colorLightBlack")?.ownText()?.trim()?.toLongOrNull()
                 ?: Regex("\\((\\d+)\\)").find(link.text())?.groupValues?.get(1)?.toLongOrNull())?.takeIf { it > 0 }
             MirrorVariant(link.text(), cells[1].text(), cells[2].text(), cells[3].text(),
-                sourceUrl(link.absUrl("href"), Source.ApkMirror).toString(), type, code)
+                sourceUrl(link.absUrl("href"), Source.ApkMirror).toString(), type, code,
+                if (channel == ReleaseChannel.Preview) channel else releaseChannel(link.text()))
         }.distinct().take(200).also { require(it.isNotEmpty()) }
     }
 
@@ -68,7 +77,7 @@ internal fun MirrorVariant.catalogEntry(packageName: String): CatalogEntry? {
             ?: androidSdkFromLabel(minimumAndroid),
         maxSdk = null, targetSdk = null, abis = if (abis.any { it.equals("universal", true) || it.equals("noarch", true) }) emptyList() else abis,
         densityDpi = null, locales = emptyList(), requiredFeatures = emptySet(), packageType = type,
-        signerDigests = emptySet(), artifacts = emptyList(), metadataUrl = url, downloadMode = DownloadMode.ResolvableDirect))
+        signerDigests = emptySet(), artifacts = emptyList(), metadataUrl = url, downloadMode = DownloadMode.ResolvableDirect), channel = channel)
 }
 
 /** Only recognized Android release labels; unknown labels remain unknown, never a float comparison. */
@@ -129,7 +138,8 @@ internal object PureParser {
                 densityDpi = null, locales = emptyList(), requiredFeatures = emptySet(), packageType = type,
                 signerDigests = emptySet(), artifacts = listOf(RemoteArtifact(
                     if (type == PackageType.Xapk) "download.xapk" else "download.apk", safeUrl, hash, size)),
-                metadataUrl = "https://apkpure.com/apk/$packageName/versions", downloadMode = DownloadMode.Direct))
+                metadataUrl = "https://apkpure.com/apk/$packageName/versions", downloadMode = DownloadMode.Direct),
+                channel = releaseChannel(string("version_name").orEmpty()))
         }.distinct().sortedByDescending { it.artifact.versionCode }.also { require(it.isNotEmpty()) }
     }
 }
@@ -146,6 +156,9 @@ internal fun sourceUrl(value: String, source: Source, download: Boolean = false)
             else listOf("apkpure.com", "apkpure.net", "pureapk.com")
         else -> error("Fuente web inválida.")
     }
+    // Exact bucket observed in APKMirror's HTTPS redirect; never trust the shared R2 parent domain.
+    val mirrorCdn = download && source == Source.ApkMirror &&
+        url.host == "eb5e7388c3df147b74dd2379b7cf8323.r2.cloudflarestorage.com"
     require(url.isHttps && url.port == 443 && url.username.isEmpty() && url.password.isEmpty() &&
-        roots.any { url.host == it || url.host.endsWith(".$it") }) { "Dirección de fuente inválida." }
+        (mirrorCdn || roots.any { url.host == it || url.host.endsWith(".$it") })) { "Dirección de fuente inválida; host=${url.host}" }
 }

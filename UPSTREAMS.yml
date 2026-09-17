@@ -1,6 +1,43 @@
 schema_version: 1
 
 components:
+  installer.shizuku-api:
+    upstream: https://github.com/RikkaApps/Shizuku-API
+    artifact: dev.rikka.shizuku:api:12.2.0
+    integration: dependency
+    license: MIT
+    symbols: [Shizuku.bindUserService, Shizuku.unbindUserService, ShizukuProvider]
+    last_seen_commit: null
+    last_reviewed_commit: null
+    last_integrated_commit: null
+
+  updates.workmanager:
+    upstream: https://github.com/androidx/androidx
+    artifact: androidx.work:work-runtime-ktx:2.11.2
+    integration: dependency
+    license: Apache-2.0
+    paths: [work]
+    symbols: [CoroutineWorker, enqueueUniquePeriodicWork]
+    last_seen_commit: null
+    last_reviewed_commit: null
+    last_integrated_commit: null
+
+  tooling.ponytail:
+    upstream: https://github.com/DietrichGebert/ponytail
+    integration: dependency
+    license: MIT
+    symbols:
+      - skills/ponytail
+      - skills/ponytail-review
+      - skills/ponytail-audit
+      - skills/ponytail-debt
+      - skills/ponytail-gain
+      - skills/ponytail-help
+    last_seen_commit: 974d940a1c5344210874150b98ff0d2c861fab6a
+    last_reviewed_commit: 974d940a1c5344210874150b98ff0d2c861fab6a
+    last_integrated_commit: 974d940a1c5344210874150b98ff0d2c861fab6a
+
+
   inventory.installed-apps:
     upstream: https://github.com/rumboalla/apkupdater
     ref: 69b6fcdf52a7735ae17101efe1a0cd26222fb276
@@ -141,13 +178,18 @@ components:
 
   installer.router:
     upstream: https://github.com/Droid-ify/client
-    integration: planned-adapted
+    ref: ff1453ed957f3b2382abce9a7eb9a9db8def3a3a
+    integration: adapted
     license: GPL-3.0-only
     symbols:
       - InstallManager
-    last_seen_commit: null
-    last_reviewed_commit: null
-    last_integrated_commit: null
+      - ShizukuInstaller
+      - RootInstaller
+    paths:
+      - app/src/main/kotlin/com/looker/droidify/installer
+    last_seen_commit: ff1453ed957f3b2382abce9a7eb9a9db8def3a3a
+    last_reviewed_commit: ff1453ed957f3b2382abce9a7eb9a9db8def3a3a
+    last_integrated_commit: ff1453ed957f3b2382abce9a7eb9a9db8def3a3a
 
   installer.session:
     upstream: https://github.com/AuroraOSS/AuroraStore

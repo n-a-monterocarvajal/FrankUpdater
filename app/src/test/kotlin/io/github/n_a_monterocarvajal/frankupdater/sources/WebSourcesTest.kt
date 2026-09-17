@@ -11,6 +11,30 @@ import org.junit.Test
 class WebSourcesTest {
     private val mirror = "https://www.apkmirror.com/apk/example/app/"
 
+    @Test fun `mirror CDN is exact download only and receives no source cookies`() {
+        val cdn = "https://eb5e7388c3df147b74dd2379b7cf8323.r2.cloudflarestorage.com/file.apk"
+        sourceUrl(cdn, Source.ApkMirror, download = true)
+        assertThrows(IllegalArgumentException::class.java) { sourceUrl(cdn, Source.ApkMirror) }
+        assertThrows(IllegalArgumentException::class.java) { sourceUrl("https://other.r2.cloudflarestorage.com/file.apk", Source.ApkMirror, true) }
+        val directory = Files.createTempDirectory("mirror-cdn-test").toFile()
+        try {
+            val client = WebSourceClient(OkHttpClient.Builder().addInterceptor { chain ->
+                if (chain.request().url.host == "www.apkmirror.com") reply(chain.request(), 302).newBuilder().header("Location", cdn).build()
+                else {
+                    assertNull(chain.request().header("Cookie"))
+                    reply(chain.request(), 200, "fixture")
+                }
+            }.build())
+            client.download(mirror, Source.ApkMirror, File(directory, "download.apk"), mapOf("Cookie" to "fixture"))
+        } finally { directory.deleteRecursively() }
+    }
+
+    @Test fun `preview labels are not promoted to stable and release channel reaches variants`() {
+        assertEquals(io.github.n_a_monterocarvajal.frankupdater.compatibility.ReleaseChannel.Unknown, releaseChannel("1.2.0"))
+        val variants = MirrorParser.variants("<title>Calculator (Early Access)</title>" + fixture("mirror.html"), mirror)
+        assertTrue(variants.all { it.channel == io.github.n_a_monterocarvajal.frankupdater.compatibility.ReleaseChannel.Preview })
+    }
+
     @Test fun `mirror table port retains bundles ABIs and unresolved version codes`() {
         val html = fixture("mirror.html")
         assertEquals("https://www.apkmirror.com/apk/example/app/app-2-release/", MirrorParser.releases(html, mirror).single().url)

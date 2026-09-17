@@ -70,4 +70,41 @@ class WebSourcesLiveTest {
             throw AssertionError("$phase: ${error.javaClass.simpleName} " + Regex("HTTP \\d{3}").find(error.message.orEmpty())?.value.orEmpty())
         }
     }
+
+    @Test fun mirrorDownloadPassesManifestAndSignatureChecksWithoutAndroid() {
+        assumeTrue(System.getenv("FRANK_LIVE_WEB") == "1")
+        val directory = Files.createTempDirectory("frank-mirror-live").toFile()
+        var phase = "history"
+        try {
+            val client = WebSourceClient()
+            val url = "https://www.apkmirror.com/apk/fossify/fossify-calculator/"
+            val release = MirrorParser.releases(client.text(url, Source.ApkMirror), url).first()
+            phase = "variants"
+            val variant = MirrorParser.variants(client.text(release.url, Source.ApkMirror), release.url)
+                .first { it.versionCode != null }
+            phase = "download page"
+            val page = MirrorParser.downloadPage(client.text(variant.url, Source.ApkMirror), variant.url)
+            phase = "download URL"
+            val download = MirrorParser.downloadUrl(client.text(page, Source.ApkMirror), page)
+            phase = "download"
+            val extension = if (variant.type == PackageType.Apkm) "apkm" else "apk"
+            val file = client.download(download, Source.ApkMirror, File(directory, "download.$extension"))
+            phase = "archive and signatures"
+            val archive = PackageArchiveExtractor().extract(file, file.name, File(directory, "extracted"))
+            val parsed = archive.apks.map { apk ->
+                val manifest = BinaryManifestMetadataReader().read(apk.file)
+                val signature = SignatureVerifier().inspect(apk.file, 26)
+                ParsedApk(apk.entryName, apk.file, apk.sha256, manifest.packageName, variant.name,
+                    manifest.versionCode, manifest.splitName, manifest.minSdk, manifest.targetSdk,
+                    signature.signers, signature.lineage, true, emptyList(), signature.authorizedAncestors)
+            }
+            assertEquals(InstallAction.Install, PackageSetValidator().validate(parsed,
+                VerificationExpectations("org.fossify.math", variant.versionCode), null))
+            println("APKMirror download: version=${variant.versionCode}, format=$extension, bytes=${file.length()}, verifiedApks=${parsed.size}")
+        } catch (error: Exception) {
+            val location = error.stackTrace.firstOrNull { it.className.contains("frankupdater") }
+            throw AssertionError("$phase: ${error.javaClass.simpleName} at ${location?.fileName}:${location?.lineNumber} " +
+                Regex("HTTP \\d{3}|host=[A-Za-z0-9.-]+").find(error.message.orEmpty())?.value.orEmpty())
+        } finally { directory.deleteRecursively() }
+    }
 }

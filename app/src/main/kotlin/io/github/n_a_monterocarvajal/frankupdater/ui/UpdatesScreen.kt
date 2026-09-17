@@ -1,0 +1,53 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+package io.github.n_a_monterocarvajal.frankupdater.ui
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import io.github.n_a_monterocarvajal.frankupdater.device.GenericDeviceProfileProvider
+import io.github.n_a_monterocarvajal.frankupdater.inventory.InstalledAppRepository
+import io.github.n_a_monterocarvajal.frankupdater.updates.UpdatePreferences
+import io.github.n_a_monterocarvajal.frankupdater.updates.UpdateSchedule
+import java.text.DateFormat
+import java.util.Date
+
+@Composable
+internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDeviceProfileProvider, modifier: Modifier = Modifier) {
+    var checks by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val preferences = remember { UpdatePreferences(context) }
+    var refreshed by remember { mutableIntStateOf(0) }
+    Column(modifier.fillMaxSize()) {
+        TextButton(onClick = { checks = !checks }) { Text(if (checks) "Ver inventario" else "Ver comprobaciones de actualizaciones") }
+        if (!checks) InventoryRoute(repository, device, Modifier.weight(1f))
+        else {
+            val rows = remember(refreshed) { preferences.observations() }
+            LazyColumn(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    Text("Comprobaciones de actualizaciones", style = MaterialTheme.typography.titleLarge)
+                    Text("APKPure consulta los paquetes seleccionados en Ajustes. Los resultados requieren verificar el archivo; no se instala nada automáticamente.")
+                    if (preferences.checkedAt > 0) Text("Última consulta: ${DateFormat.getDateTimeInstance().format(Date(preferences.checkedAt))}")
+                    Button(enabled = preferences.packages.isNotEmpty(), onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
+                    TextButton(onClick = { refreshed++ }) { Text("Actualizar resultados") }
+                    if (preferences.packages.isEmpty()) Text("Selecciona paquetes en Ajustes para comenzar.")
+                }
+                items(rows, key = { it.packageName }) { row ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(row.packageName)
+                            Text("Instalada: ${row.installed} · Disponible: ${row.available ?: "Sin confirmar"}")
+                            Text(row.status)
+                            Text("Consulta este paquete en Buscar para descargar y verificar la versión.")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

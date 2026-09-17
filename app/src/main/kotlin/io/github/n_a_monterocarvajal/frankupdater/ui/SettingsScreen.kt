@@ -1,6 +1,14 @@
 package io.github.n_a_monterocarvajal.frankupdater.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +27,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.n_a_monterocarvajal.frankupdater.storage.PackageRetentionPolicy
 import io.github.n_a_monterocarvajal.frankupdater.storage.RetentionPreferences
+import io.github.n_a_monterocarvajal.frankupdater.installer.InstallerMode
+import io.github.n_a_monterocarvajal.frankupdater.installer.InstallerPreferences
+import io.github.n_a_monterocarvajal.frankupdater.updates.UpdatePreferences
+import io.github.n_a_monterocarvajal.frankupdater.updates.UpdateSchedule
+import rikka.shizuku.Shizuku
 
 @Composable
 internal fun SettingsRoute(
@@ -26,9 +39,18 @@ internal fun SettingsRoute(
     modifier: Modifier = Modifier,
 ) {
     var policy by remember { mutableStateOf(retentionPreferences.policy) }
+    val context = LocalContext.current
+    val installer = remember { InstallerPreferences(context) }
+    val updates = remember { UpdatePreferences(context) }
+    var mode by remember { mutableStateOf(installer.mode) }
+    var enabled by remember { mutableStateOf(updates.enabled) }
+    var packages by remember { mutableStateOf(updates.packages.sorted().joinToString("\n")) }
+    var message by remember { mutableStateOf("") }
+    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
     ) {
         Text("Retención tras instalar", style = MaterialTheme.typography.headlineSmall)
@@ -63,6 +85,36 @@ internal fun SettingsRoute(
                 retentionPreferences.policy = policy
             },
         )
+        Text("Método de instalación", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp))
+        Text("Automático usa Shizuku si ya tiene permiso; en otro caso usa Sistema. Root solo se solicita al instalar con ese modo.")
+        InstallerMode.entries.forEach { option ->
+            RetentionOption(option.label, "", mode == option) { mode = option; installer.mode = option }
+        }
+        Button(onClick = {
+            message = try {
+                check(Shizuku.pingBinder())
+                if (Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED) "Shizuku autorizado."
+                else { Shizuku.requestPermission(7); "Confirma el permiso en Shizuku y vuelve a instalar." }
+            } catch (_: Exception) { "Inicia Shizuku antes de solicitar acceso." }
+        }) { Text("Autorizar Shizuku") }
+        Text("Comprobaciones periódicas", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp))
+        Text("Cada 24 horas, con red y batería suficiente. Se comparte con APKPure únicamente la lista seleccionada. No se descargan ni instalan paquetes.")
+        OutlinedTextField(packages, { packages = it }, label = { Text("Paquetes, uno por línea (máximo 50)") }, modifier = Modifier.fillMaxWidth())
+        Button(onClick = {
+            try {
+                updates.packages = packages.lines().map(String::trim).filter(String::isNotBlank).toSet()
+                UpdateSchedule.configure(context)
+                message = "Paquetes guardados."
+            } catch (error: IllegalArgumentException) { message = error.message ?: "Nombre de paquete inválido." }
+        }) { Text("Guardar paquetes") }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Switch(enabled, onCheckedChange = {
+                enabled = it; updates.enabled = it; UpdateSchedule.configure(context)
+                if (it && android.os.Build.VERSION.SDK_INT >= 33) notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            })
+            Text("Comprobar cada 24 horas")
+        }
+        if (message.isNotBlank()) Text(message)
     }
 }
 
