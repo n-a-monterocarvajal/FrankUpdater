@@ -4,7 +4,7 @@ La Etapa 1 fija las siguientes revisiones antes de adaptar o portar código:
 
 | Componente local | Upstream y revisión | Símbolos estudiados | Integración prevista |
 |---|---|---|---|
-| Inventario instalado | `rumboalla/apkupdater@69b6fcdf52a7735ae17101efe1a0cd26222fb276` | `AppsRepository`, `PackageInfo.toAppInstalled` | Adaptación al modelo propio y a APIs 23–37 |
+| Inventario instalado | `rumboalla/apkupdater@69b6fcdf52a7735ae17101efe1a0cd26222fb276` | `AppsRepository`, `PackageInfo.toAppInstalled`, `AppsScreen`, `AppsViewModel.onSystemClick`, `UpdatesRepository.updates` | Adaptación al modelo propio y a APIs 23–37 |
 | Perfil genérico | `AuroraOSS/AuroraStore@f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b` | `NativeDeviceInfoProvider` | Adaptación sin propiedades ni dependencias de Google Play |
 | Compatibilidad base | `f-droid/fdroidclient@707b8ece6e5eece0a27b80855172e12e624f9c71` | `CompatibilityCheckerImpl`, `CompatibilityCheckerUtils.minInstallableTargetSdk` | Adaptación al candidato normalizado de FrankUpdater |
 | Targeting | `google/bundletool@586a43a450712a1067f3d92cf7574dee68226302` | `AbiMatcher`, `MultiAbiMatcher`, `SdkVersionMatcher`, `ScreenDensityMatcher`, `ScreenDensitySelector`, `TargetingComparators.MULTI_ABI_ALIAS_COMPARATOR` | Port mínimo Kotlin sin protobuf ni Guava |
@@ -26,7 +26,8 @@ Los ports y adaptaciones locales conservarán encabezados SPDX y comentarios de 
 
 ## Adaptaciones de inventario y perfil
 
-- El repositorio mantiene la consulta `PackageManager` de APKUpdater, pero no incorpora sus preferencias ni filtros: en esta etapa se incluyen apps de usuario, sistema y deshabilitadas y se etiquetan en la UI.
+- La adaptación inicial mantiene la consulta `PackageManager` de APKUpdater, pero no incorporaba sus preferencias ni filtros: incluye apps de usuario, sistema y deshabilitadas y las etiqueta en la UI.
+- La revisión posterior adapta el flujo `AppsScreen` → `AppsViewModel` → `UpdatesRepository`: filtrar el inventario antes de elegir qué consultar y convertir esa elección en el conjunto mínimo enviado al proveedor. La búsqueda por nombre o paquete y la selección explícita de hasta cincuenta aplicaciones son divergencias propias; APKUpdater fija filtros de exclusión, no ese límite ni esas casillas.
 - La firma se normaliza como historial de certificados SHA-256. En API 28+ se distingue entre múltiples firmantes actuales y rotación mediante `SigningInfo`; en APIs anteriores se usa `GET_SIGNATURES`.
 - El perfil genérico toma de Aurora las ABIs ordenadas, densidad, dimensiones, features, locales, bibliotecas compartidas y versión OpenGL. Usa los locales configurados del dispositivo, no todos los recursos localizados presentes en el sistema.
 - Propiedades de build y futuros identificadores GSF/Vending viven solo en `PlayDeviceProfile`. El checker y el inventario dependen exclusivamente de `GenericDeviceProfile`.

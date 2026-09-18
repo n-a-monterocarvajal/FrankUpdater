@@ -23,9 +23,28 @@ internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDev
     val context = LocalContext.current
     val preferences = remember { UpdatePreferences(context) }
     var refreshed by remember { mutableIntStateOf(0) }
+    var checkRequested by rememberSaveable { mutableStateOf(false) }
+    var selectedPackages by remember { mutableStateOf(preferences.packages) }
+    fun saveSelection(packages: Set<String>) {
+        preferences.packages = packages
+        selectedPackages = packages
+    }
     Column(modifier.fillMaxSize()) {
-        TextButton(onClick = { checks = !checks }) { Text(if (checks) "Ver inventario" else "Ver comprobaciones de actualizaciones") }
-        if (!checks) InventoryRoute(repository, device, Modifier.weight(1f))
+        TextButton(onClick = { checks = !checks }) { Text(if (checks) "Volver a seleccionar aplicaciones" else "Ver resultados de comprobaciones") }
+        if (!checks) InventoryRoute(
+            installedAppRepository = repository,
+            deviceProfileProvider = device,
+            selectedPackages = selectedPackages,
+            onSelectedPackagesChange = ::saveSelection,
+            onCheckUpdates = { packages ->
+                saveSelection(packages)
+                UpdateSchedule.checkNow(context)
+                refreshed++
+                checkRequested = true
+                checks = true
+            },
+            modifier = Modifier.weight(1f),
+        )
         else {
             val rows = remember(refreshed) { preferences.observations() }
             LazyColumn(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -42,6 +61,9 @@ internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDev
                         }
                         Button(enabled = preferences.packages.isNotEmpty(), onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
                         TextButton(onClick = { refreshed++ }) { Text("Actualizar resultados") }
+                        if (checkRequested) {
+                            Text("Comprobación iniciada. Actualiza los resultados cuando termine.", color = MaterialTheme.colorScheme.primary)
+                        }
                         if (preferences.packages.isEmpty()) {
                             Text("Selecciona paquetes en Ajustes para comenzar.", color = MaterialTheme.colorScheme.tertiary)
                         }

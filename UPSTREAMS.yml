@@ -46,6 +46,9 @@ components:
     symbols:
       - AppsRepository
       - PackageInfo.toAppInstalled
+      - AppsScreen
+      - AppsViewModel.onSystemClick
+      - UpdatesRepository.updates
     last_seen_commit: 69b6fcdf52a7735ae17101efe1a0cd26222fb276
     last_reviewed_commit: 69b6fcdf52a7735ae17101efe1a0cd26222fb276
     last_integrated_commit: 69b6fcdf52a7735ae17101efe1a0cd26222fb276
