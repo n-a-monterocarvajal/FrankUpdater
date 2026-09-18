@@ -16,6 +16,12 @@ internal data class MirrorVariant(
     val channel: ReleaseChannel = ReleaseChannel.Unknown,
 )
 
+/** Requirements published on an APKMirror variant page; `sha256` exists for single APKs, not for bundles. */
+internal data class MirrorVariantDetails(
+    val versionCode: Long?, val minSdk: Int?, val targetSdk: Int?, val abis: List<String>?,
+    val sizeBytes: Long?, val sha256: String?,
+)
+
 internal fun releaseChannel(label: String): ReleaseChannel =
     if (Regex("(?i)\\b(alpha|beta|early[ -]access|preview|rc[0-9]*)\\b").containsMatchIn(label))
         ReleaseChannel.Preview else ReleaseChannel.Unknown
@@ -53,6 +59,32 @@ internal object MirrorParser {
         }.distinct().take(200).also { require(it.isNotEmpty()) }
     }
 
+    /**
+     * Reads the variant page spec rows. Listed features are ignored: the page does not say which are
+     * required, and treating optional ones as required would reject compatible devices.
+     */
+    fun variantDetails(html: String, url: String): MirrorVariantDetails {
+        val parsed = document(html, url)
+        val rows = parsed.select(".apk-detail-table .appspec-row").associate { row ->
+            row.selectFirst("svg[title]")?.attr("title").orEmpty() to
+                row.selectFirst(".appspec-value")?.let { value -> value.select("br").after("\n"); value.wholeText() }.orEmpty()
+        }
+        require(rows.isNotEmpty())
+        fun number(row: String, pattern: String) = Regex(pattern).find(rows[row].orEmpty())?.groupValues?.get(1)
+        val abiLine = rows["Supported architectures and screen densities"]?.lineSequence()?.map(String::trim)
+            ?.firstOrNull(String::isNotEmpty)
+        val hashes = parsed.selectFirst("#safeDownload")?.text()?.substringAfter("APK file hashes", "").orEmpty()
+        return MirrorVariantDetails(
+            versionCode = number("APK details", "Version:[^(]*\\((\\d+)\\)")?.toLongOrNull()?.takeIf { it > 0 },
+            minSdk = number("Android version", "Min:[^\\n]*API (\\d+)")?.toIntOrNull(),
+            targetSdk = number("Android version", "Target:[^\\n]*API (\\d+)")?.toIntOrNull(),
+            abis = abiLine?.split('+')?.map(String::trim)?.filter(String::isNotEmpty)
+                ?.let { list -> if (list.any { it.equals("universal", true) || it.equals("noarch", true) }) emptyList() else list },
+            sizeBytes = number("APK file size", "\\(([\\d,]+) bytes\\)")?.replace(",", "")?.toLongOrNull()?.takeIf { it > 0 },
+            sha256 = Regex("SHA-256:\\s*([0-9a-f]{64})").find(hashes)?.groupValues?.get(1),
+        )
+    }
+
     fun downloadPage(html: String, url: String): String = sourceUrl(
         requireNotNull(document(html, url).selectFirst("a.downloadButton[href]")).absUrl("href"),
         Source.ApkMirror,
@@ -69,15 +101,20 @@ internal object MirrorParser {
     }
 }
 
-internal fun MirrorVariant.catalogEntry(packageName: String): CatalogEntry? {
-    val code = versionCode ?: return null
-    val abis = architecture.split('+', ',').map(String::trim).filter(String::isNotBlank)
+internal fun MirrorVariant.catalogEntry(packageName: String, details: MirrorVariantDetails? = null): CatalogEntry? {
+    val code = versionCode ?: details?.versionCode ?: return null
+    val rowAbis = architecture.split('+', ',').map(String::trim).filter(String::isNotBlank)
+    val minSdk = details?.minSdk ?: Regex("API\\s+(\\d+)", RegexOption.IGNORE_CASE).find(minimumAndroid)?.groupValues?.get(1)?.toIntOrNull()
+        ?: androidSdkFromLabel(minimumAndroid)
     return CatalogEntry(ArtifactCandidate(packageName, name, code, Source.ApkMirror,
-        minSdk = Regex("API\\s+(\\d+)", RegexOption.IGNORE_CASE).find(minimumAndroid)?.groupValues?.get(1)?.toIntOrNull()
-            ?: androidSdkFromLabel(minimumAndroid),
-        maxSdk = null, targetSdk = null, abis = if (abis.any { it.equals("universal", true) || it.equals("noarch", true) }) emptyList() else abis,
+        minSdk = minSdk, maxSdk = null, targetSdk = details?.targetSdk,
+        abis = details?.abis ?: if (rowAbis.any { it.equals("universal", true) || it.equals("noarch", true) }) emptyList() else rowAbis,
         densityDpi = null, locales = emptyList(), requiredFeatures = emptySet(), packageType = type,
-        signerDigests = emptySet(), artifacts = emptyList(), metadataUrl = url, downloadMode = DownloadMode.ResolvableDirect), channel = channel)
+        signerDigests = emptySet(),
+        // The URI is the variant page, resolved at download time; hash and size still bind the downloaded file.
+        artifacts = if (details == null) emptyList() else listOf(RemoteArtifact("download", url, details.sha256, details.sizeBytes)),
+        metadataUrl = url, downloadMode = DownloadMode.ResolvableDirect),
+        constraintsKnown = minSdk != null && details?.targetSdk != null, channel = channel)
 }
 
 /** Only recognized Android release labels; unknown labels remain unknown, never a float comparison. */

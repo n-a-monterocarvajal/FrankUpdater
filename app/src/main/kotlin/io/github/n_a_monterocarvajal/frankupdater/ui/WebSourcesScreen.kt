@@ -54,6 +54,7 @@ private object WebSearch {
     val progress = mutableStateOf<Pair<Long, Long>?>(null)
     val message = mutableStateOf("")
     val failedSources = mutableStateOf<Set<Source>>(emptySet())
+    val variantDetails = mutableStateOf<Map<String, MirrorVariantDetails>>(emptyMap())
 }
 
 @Composable
@@ -82,8 +83,18 @@ internal fun WebSourcesCard(
     var pendingImport by remember { mutableStateOf<WebChoice?>(null) }
     var assisted by remember { mutableStateOf<WebChoice?>(null) }
     var shown by remember(packageName, releases, variants, entries) { mutableIntStateOf(50) }
-    LaunchedEffect(variants, packageName) {
-        if (variants.isNotEmpty()) onEntries(variants.mapNotNull { it.catalogEntry(packageName) })
+    var variantDetails by WebSearch.variantDetails
+    LaunchedEffect(variants, variantDetails, packageName) {
+        if (variants.isNotEmpty()) onEntries(variants.mapNotNull { it.catalogEntry(packageName, variantDetails[it.url]) })
+    }
+
+    /** Blocking: reads each variant page for minSdk, targetSdk, ABIs, size and hash. A failed page stays unknown. */
+    fun loadVariants(list: List<MirrorVariant>) {
+        variantDetails = list.take(12).mapNotNull { variant ->
+            runCatching { variant.url to MirrorParser.variantDetails(client.text(variant.url, Source.ApkMirror), variant.url) }
+                .getOrNull()
+        }.toMap()
+        variants = list
     }
 
     suspend fun download(selected: WebChoice, expectedCode: Long, capturedUrl: String? = null, headers: Map<String, String> = emptyMap()) {
@@ -223,7 +234,7 @@ internal fun WebSourcesCard(
                     runInterruptible(Dispatchers.IO) {
                         val html = client.text(mirrorUrl, Source.ApkMirror)
                         if (sourceUrl(mirrorUrl, Source.ApkMirror).encodedPath.contains("-release/")) {
-                            variants = MirrorParser.variants(html, mirrorUrl); releases = emptyList()
+                            loadVariants(MirrorParser.variants(html, mirrorUrl)); releases = emptyList()
                         } else { releases = MirrorParser.releases(html, mirrorUrl); variants = emptyList() }
                     }
                 }
@@ -242,15 +253,10 @@ internal fun WebSourcesCard(
             releases.take(shown).forEach { release ->
                 TextButton(enabled = !busy, onClick = {
                     act(Source.ApkMirror) {
-                        variants = runInterruptible(Dispatchers.IO) { MirrorParser.variants(client.text(release.url, Source.ApkMirror), release.url) }
+                        runInterruptible(Dispatchers.IO) { loadVariants(MirrorParser.variants(client.text(release.url, Source.ApkMirror), release.url)) }
                         releases = emptyList()
                     }
                 }) { Text(release.name) }
-            }
-            variants.take(shown).forEach { variant ->
-                TextButton(enabled = !busy, onClick = {
-                    select(WebChoice(packageName, variant.versionCode, Source.ApkMirror, variant.type, variant.url, channel = variant.channel))
-                }) { Text("${variant.name} · ${variant.architecture} · ${variant.minimumAndroid} · ${variant.density} · ${variant.type}") }
             }
             device?.let { profile ->
                 Row {
@@ -288,7 +294,8 @@ internal fun WebSourcesCard(
                     else if (assessment.channelAllowed) {
                         if (artifact.source != Source.GooglePlay && artifact.downloadMode != DownloadMode.Unavailable) TextButton(enabled = !busy, onClick = {
                             select(WebChoice(packageName, artifact.versionCode, artifact.source, artifact.packageType,
-                                requireNotNull(artifact.metadataUrl), artifact.artifacts.firstOrNull()?.uri,
+                                requireNotNull(artifact.metadataUrl),
+                                artifact.artifacts.firstOrNull()?.uri?.takeIf { artifact.downloadMode == DownloadMode.Direct },
                                 artifact.artifacts.firstOrNull()?.sha256, artifact.artifacts.firstOrNull()?.sizeBytes,
                                 assessment.entry.channel))
                         }) { Text("Elegir esta variante") }

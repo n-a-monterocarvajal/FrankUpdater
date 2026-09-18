@@ -54,6 +54,23 @@ class WebSourcesTest {
         assertEquals("https://www.apkmirror.com/wp-content/file.apk", MirrorParser.downloadUrl(html, mirror))
     }
 
+    @Test fun `variant page completes requirements and binds the file hash, not the certificate`() {
+        val details = MirrorParser.variantDetails(fixture("mirror-variant.html"), mirror)
+        assertEquals(MirrorVariantDetails(200, 26, 37, listOf("arm64-v8a", "x86_64"), 113_724_209,
+            "a66ee23228d5c6d3a402083dbe9d97e8f7a2f3f38a0ffab51e547b1bf49d3f08"), details)
+        val row = MirrorVariant("2.0", "arm64-v8a", "Android 8.0+", "nodpi", mirror, PackageType.MonolithicApk, null)
+        assertNull(row.catalogEntry("org.example.app"))
+        val entry = row.catalogEntry("org.example.app", details)!!
+        assertTrue(entry.constraintsKnown)
+        assertEquals(200L, entry.artifact.versionCode)
+        assertEquals(37, entry.artifact.targetSdk)
+        assertEquals(113_724_209L, entry.artifact.artifacts.single().sizeBytes)
+        val universal = MirrorParser.variantDetails(fixture("mirror-variant.html")
+            .replace("arm64-v8a + x86_64", "universal").replace("APK file hashes", "none"), mirror)
+        assertEquals(emptyList<String>(), universal.abis)
+        assertNull(universal.sha256)
+    }
+
     @Test fun `changed markup challenge and hostile links never become valid results`() {
         for (html in listOf("<html>Changed layout</html>", "Enable JavaScript and cookies to continue")) {
             assertThrows(IllegalArgumentException::class.java) { MirrorParser.releases(html, mirror) }
