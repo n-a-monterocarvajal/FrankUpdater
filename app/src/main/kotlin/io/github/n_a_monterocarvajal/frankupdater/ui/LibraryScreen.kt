@@ -174,52 +174,49 @@ internal fun LibraryRoute(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        UiSection(
+            title = "Biblioteca local",
+            supporting = "Importa APK, APKS, APKM o XAPK mediante el selector seguro de Android.",
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Biblioteca local", style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    "Importa APK, APKS, APKM o XAPK mediante el selector seguro de Android.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
             Button(
                 onClick = { documentPicker.launch(packageMimeTypes) },
                 enabled = !importing && !installing,
             ) {
-                Text("Importar")
+                Text("Importar paquete")
             }
         }
 
         if (router.preferences.mode == InstallerMode.Root || router.preferences.mode == InstallerMode.Shizuku) {
-            Button(enabled = !importing && !installing && entries.isNotEmpty(), modifier = Modifier.padding(horizontal = 20.dp), onClick = {
-                scope.launch {
-                    installing = true
-                    var completed = 0
-                    try {
-                        for (entry in entries.groupBy { it.packageName }.values.map { group -> group.maxBy { it.versionCode } }) {
-                            pipeline.prepare(entry).use { prepared ->
-                                if (prepared.verified.installAction == InstallAction.Update) {
-                                    check(router.install(prepared.verified) == InstallRequestResult.Finished)
-                                    completed++
-                                    if (retentionPreferences.policy == PackageRetentionPolicy.DeleteAutomatically)
-                                        withContext(Dispatchers.IO) { check(library.delete(entry)) }
+            UiSection(
+                title = "Actualizaciones por lote",
+                supporting = "Solo está disponible para Shizuku y Root, que confirman cada resultado.",
+                modifier = Modifier.padding(horizontal = 20.dp),
+            ) {
+                Button(enabled = !importing && !installing && entries.isNotEmpty(), onClick = {
+                    scope.launch {
+                        installing = true
+                        var completed = 0
+                        try {
+                            for (entry in entries.groupBy { it.packageName }.values.map { group -> group.maxBy { it.versionCode } }) {
+                                pipeline.prepare(entry).use { prepared ->
+                                    if (prepared.verified.installAction == InstallAction.Update) {
+                                        check(router.install(prepared.verified) == InstallRequestResult.Finished)
+                                        completed++
+                                        if (retentionPreferences.policy == PackageRetentionPolicy.DeleteAutomatically)
+                                            withContext(Dispatchers.IO) { check(library.delete(entry)) }
+                                    }
                                 }
                             }
-                        }
-                        errorMessage = null
-                        installMessage = "$completed actualizaciones completadas. Los archivos restantes se conservan en Biblioteca."
-                    } catch (cancelled: CancellationException) { throw cancelled }
-                    catch (error: Exception) { errorMessage = "Lote detenido tras $completed actualizaciones: ${error.message}" }
-                    finally { installing = false; reloadToken++ }
-                }
-            }) { Text("Actualizar desde biblioteca por lotes") }
-            if (selected == null) installMessage?.let { Text(it, Modifier.padding(horizontal = 20.dp)) }
+                            errorMessage = null
+                            installMessage = "$completed actualizaciones completadas. Los archivos restantes se conservan en Biblioteca."
+                        } catch (cancelled: CancellationException) { throw cancelled }
+                        catch (error: Exception) { errorMessage = "Lote detenido tras $completed actualizaciones: ${error.message}" }
+                        finally { installing = false; reloadToken++ }
+                    }
+                }) { Text("Actualizar desde biblioteca") }
+                if (selected == null) installMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+            }
         }
 
         if (importing) {
@@ -246,6 +243,7 @@ internal fun LibraryRoute(
                 prepared = prepared,
                 retained = selectedRetained,
                 installing = installing,
+                installerMode = router.preferences.mode,
                 installMessage = installMessage,
                 retentionDecisionNeeded = retentionDecisionNeeded,
                 onInstall = {
@@ -353,6 +351,7 @@ private fun VerifiedImportCard(
     prepared: PreparedPackageImport,
     retained: Boolean,
     installing: Boolean,
+    installerMode: InstallerMode,
     installMessage: String?,
     retentionDecisionNeeded: Boolean,
     onInstall: () -> Unit,
@@ -360,6 +359,8 @@ private fun VerifiedImportCard(
     onDiscard: () -> Unit,
 ) {
     val packageArchive = prepared.verified
+    val legacyUnsupported = installerMode == InstallerMode.Legacy &&
+        (packageArchive.apks.size != 1 || !packageArchive.apks.single().isBase)
     Card(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Paquete verificado", color = MaterialTheme.colorScheme.primary)
@@ -392,12 +393,20 @@ private fun VerifiedImportCard(
                     modifier = Modifier.padding(top = 8.dp),
                 )
             }
+            if (installerMode == InstallerMode.Legacy) {
+                Text(
+                    if (legacyUnsupported) "Legacy solo instala APK único; este paquete contiene splits."
+                    else "Modo Legacy: Android abrirá su instalador para este APK único.",
+                    color = if (legacyUnsupported) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(top = 12.dp),
             ) {
-                Button(onClick = onInstall, enabled = !installing) {
+                Button(onClick = onInstall, enabled = !installing && !legacyUnsupported) {
                     Text(
                         when (packageArchive.installAction) {
                             InstallAction.Install -> "Instalar"

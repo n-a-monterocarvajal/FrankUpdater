@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.window.core.layout.WindowSizeClass
 import io.github.n_a_monterocarvajal.frankupdater.device.GenericDeviceProfileProvider
@@ -98,7 +99,7 @@ fun FrankUpdaterApp(
                         NavigationRailItem(
                             selected = selectedIndex == index,
                             onClick = { selectedIndex = index },
-                            icon = { Text(destination.symbol) },
+                            icon = { Text(destination.symbol, fontSize = 24.sp, lineHeight = 24.sp) },
                             label = {
                                 Text(
                                     text = destination.compactLabel,
@@ -130,7 +131,7 @@ fun FrankUpdaterApp(
                             NavigationBarItem(
                                 selected = selectedIndex == index,
                                 onClick = { selectedIndex = index },
-                                icon = { Text(destination.symbol) },
+                            icon = { Text(destination.symbol, fontSize = 24.sp, lineHeight = 24.sp) },
                                 label = {
                                     Text(
                                         text = destination.compactLabel,

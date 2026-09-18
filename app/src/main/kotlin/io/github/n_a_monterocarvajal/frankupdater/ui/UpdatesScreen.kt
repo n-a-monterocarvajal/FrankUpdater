@@ -30,20 +30,34 @@ internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDev
             val rows = remember(refreshed) { preferences.observations() }
             LazyColumn(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
-                    Text("Comprobaciones de actualizaciones", style = MaterialTheme.typography.titleLarge)
-                    Text("APKPure consulta los paquetes seleccionados en Ajustes. Los resultados requieren verificar el archivo; no se instala nada automáticamente.")
-                    if (preferences.checkedAt > 0) Text("Última consulta: ${DateFormat.getDateTimeInstance().format(Date(preferences.checkedAt))}")
-                    Button(enabled = preferences.packages.isNotEmpty(), onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
-                    TextButton(onClick = { refreshed++ }) { Text("Actualizar resultados") }
-                    if (preferences.packages.isEmpty()) Text("Selecciona paquetes en Ajustes para comenzar.")
+                    UiSection(
+                        title = "Comprobaciones de actualizaciones",
+                        supporting = "APKPure consulta los paquetes elegidos en Ajustes. Todo archivo se verifica antes de instalarse.",
+                    ) {
+                        if (preferences.checkedAt > 0) {
+                            Text(
+                                "Última consulta: ${DateFormat.getDateTimeInstance().format(Date(preferences.checkedAt))}",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Button(enabled = preferences.packages.isNotEmpty(), onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
+                        TextButton(onClick = { refreshed++ }) { Text("Actualizar resultados") }
+                        if (preferences.packages.isEmpty()) {
+                            Text("Selecciona paquetes en Ajustes para comenzar.", color = MaterialTheme.colorScheme.tertiary)
+                        }
+                    }
                 }
                 items(rows, key = { it.packageName }) { row ->
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp)) {
-                            Text(row.packageName)
+                            Text(row.packageName, style = MaterialTheme.typography.titleMedium)
                             Text("Instalada: ${row.installed} · Disponible: ${row.available ?: "Sin confirmar"}")
-                            Text(row.status)
-                            Text("Consulta este paquete en Buscar para descargar y verificar la versión.")
+                            Text(row.status, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "Consulta este paquete en Buscar para descargar y verificar la versión.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 }

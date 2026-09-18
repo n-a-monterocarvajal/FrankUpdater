@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -112,10 +113,14 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
         }
         item { Text("Google Play", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp)) }
         item {
-            if (provider == null) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Cuenta personal de Google Play")
-                    Text("Usa el correo y AAS token generados por un flujo compatible con Aurora. La contrasena no se guarda.")
+            UiSection(
+                title = if (provider == null) "Conectar Google Play" else "Google Play conectado",
+                supporting = if (provider == null) "Elige una cuenta personal o acceso anónimo. Ambos son opcionales."
+                    else "Ya puedes buscar, consultar detalles y solicitar una descarga.",
+            ) {
+                if (provider == null) {
+                    Text("Cuenta personal", style = MaterialTheme.typography.titleMedium)
+                    Text("Usa un correo y AAS token de un flujo compatible con Aurora. La contraseña no se guarda.")
                     OutlinedTextField(email, { email = it }, label = { Text("Correo de Google") },
                         singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(aasToken, { aasToken = it }, label = { Text("AAS token") },
@@ -136,8 +141,8 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                         email = ""
                         aasToken = ""
                     }) { Text("Borrar cuenta guardada") }
-                    Text("Acceso anonimo opcional")
-                    Text("Acceso anónimo")
+                    HorizontalDivider()
+                    Text("Acceso anónimo", style = MaterialTheme.typography.titleMedium)
                     Text("Introduce un servidor compatible. Al conectar, se compartirá el perfil del dispositivo " +
                         "con ese servidor y Google para obtener aplicaciones adecuadas. No necesitas una cuenta personal.")
                     OutlinedTextField(endpoint, { endpoint = it }, label = { Text("Dirección HTTPS del servidor") },
@@ -150,35 +155,40 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                             message = "Acceso anónimo conectado."
                         }
                     }) { Text("Conectar") }
-                }
-            } else {
-                TextButton(enabled = !busy, onClick = { provider = null; results = emptyList(); selected = null }) {
-                    Text("Desconectar acceso anónimo")
+                } else {
+                    TextButton(enabled = !busy, onClick = { provider = null; results = emptyList(); selected = null }) {
+                        Text("Desconectar")
+                    }
                 }
             }
         }
         item {
-            OutlinedTextField(query, { query = it.take(200) }, label = { Text("Buscar aplicaciones") },
-                enabled = !busy && provider != null, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Button(enabled = !busy && provider != null && query.isNotBlank(), onClick = {
-                act {
-                    results = requireNotNull(provider).search(query)
-                    selected = null
-                    if (results.isEmpty()) message = "No se encontraron aplicaciones."
-                }
-            }) { Text("Buscar") }
+            UiSection(
+                title = "Buscar en Google Play",
+                supporting = if (provider == null) "Conecta una cuenta o un servidor anónimo para comenzar."
+                    else "Los resultados se verifican antes de guardar cualquier descarga.",
+            ) {
+                OutlinedTextField(query, { query = it.take(200) }, label = { Text("Buscar aplicaciones") },
+                    enabled = !busy && provider != null, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Button(enabled = !busy && provider != null && query.isNotBlank(), onClick = {
+                    act {
+                        results = requireNotNull(provider).search(query)
+                        selected = null
+                        if (results.isEmpty()) message = "No se encontraron aplicaciones."
+                    }
+                }) { Text("Buscar") }
+            }
         }
         if (busy) item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
-        if (message.isNotBlank()) item { Text(message) }
+        if (message.isNotBlank()) item { UiStatus(message) }
         selected?.let { app ->
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(app.displayName, style = MaterialTheme.typography.titleLarge)
+                UiSection(title = app.displayName, supporting = "Detalle y descarga") {
                         Text(app.packageName)
                         TextButton(enabled = !busy, onClick = { openPlayStore(context, app.packageName) }) {
                             Text("Abrir en Play Store")
                         }
+                        Text("Disponibilidad", style = MaterialTheme.typography.titleMedium)
                         Text("Versión ofrecida por Play: ${app.versionName} (${app.versionCode})")
                         device?.let { profile ->
                             val selection = VersionCatalog().select(app.packageName,
@@ -192,7 +202,10 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                                 }
                             }
                         }
+                        Text("Descripción", style = MaterialTheme.typography.titleMedium)
                         Text(app.shortDescription.ifBlank { app.description }.take(800))
+                        HorizontalDivider()
+                        Text("Descarga verificada", style = MaterialTheme.typography.titleMedium)
                         Text("La identidad y la firma se comprobarán al descargar. Android confirmará si puede instalarse. " +
                             "Esta versión no representa necesariamente la última compatible.")
                         OutlinedTextField(version, { version = it.filter(Char::isDigit).take(19) },
@@ -217,7 +230,6 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                             }
                         }) { Text("Descargar a biblioteca") }
                         if (!app.isFree) Text("El acceso anónimo no admite compras.")
-                    }
                 }
             }
         }

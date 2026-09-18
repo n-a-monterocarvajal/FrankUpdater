@@ -130,7 +130,12 @@ internal fun WebSourcesCard(
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Historial y otras fuentes", style = MaterialTheme.typography.titleLarge)
-            Text("Consulta APKMirror o APKPure sin iniciar sesión en Play. La consulta comparte el paquete con la fuente elegida.")
+            Text(
+                "Consulta APKMirror o APKPure sin iniciar sesión en Play. La consulta comparte el paquete con la fuente elegida.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text("Consultar fuentes", style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(packageName, {
                 packageName = it.take(255); releases = emptyList(); variants = emptyList(); choice = null; failedSources = emptySet()
             }, label = { Text("Paquete (ejemplo: org.fossify.math)") }, singleLine = true, enabled = !busy,
@@ -168,6 +173,10 @@ internal fun WebSourcesCard(
                 try { requirePackageName(packageName); browser("https://apkpure.com/apk/$packageName/versions", Source.ApkPure) }
                 catch (_: Exception) { message = "Introduce un nombre de paquete válido." }
             }) { Text("Abrir historial APKPure en navegador") }
+            if (releases.isNotEmpty() || variants.isNotEmpty() || entries.any { it.artifact.packageName == packageName }) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Text("Resultados y compatibilidad", style = MaterialTheme.typography.titleMedium)
+            }
             releases.take(shown).forEach { release ->
                 TextButton(enabled = !busy, onClick = {
                     act(Source.ApkMirror) {
@@ -190,21 +199,30 @@ internal fun WebSourcesCard(
                     entries.filter { it.artifact.packageName == packageName }, profile, unavailableSources = failedSources,
                     includePreviews = includePreviews)
                 if (selection.assessments.isNotEmpty()) {
-                    Text("Última versión conocida: ${selection.latestKnownVersionCode}")
-                    Text("Última compatible según metadatos: ${selection.latestCompatibleVersionCode ?: "Pendiente de comprobar"}")
-                    Text("El historial puede estar incompleto. Los metadatos no sustituyen la verificación del archivo.")
-                    if (selection.hasUnresolvedNewerVersion) Text("Hay versiones superiores pendientes de comprobar.")
+                    Text("Última versión conocida: ${selection.latestKnownVersionCode}", style = MaterialTheme.typography.titleSmall)
+                    Text("Última compatible: ${selection.latestCompatibleVersionCode ?: "Pendiente de comprobar"}")
+                    Text(
+                        "El historial puede estar incompleto. Los metadatos no sustituyen la verificación del archivo.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (selection.hasUnresolvedNewerVersion) {
+                        Text("Hay versiones superiores pendientes de comprobar.", color = MaterialTheme.colorScheme.tertiary)
+                    }
                 }
                 selection.assessments.take(shown).forEach { assessment ->
                     val artifact = assessment.entry.artifact
                     Text("${artifact.versionName.orEmpty()} (${artifact.versionCode}) · ${artifact.source} · " +
-                        "${artifact.abis.ifEmpty { listOf("ABI no especificada") }.joinToString()} · ${artifact.packageType}")
+                        "${artifact.abis.ifEmpty { listOf("ABI no especificada") }.joinToString()} · ${artifact.packageType}",
+                        style = MaterialTheme.typography.titleSmall)
                     Text(when (assessment.entry.channel) {
                         ReleaseChannel.Preview -> "Canal preliminar"
                         ReleaseChannel.Stable -> "Canal estable"
                         ReleaseChannel.Unknown -> "Canal no confirmado"
-                    })
-                    if (assessment.incompatibilities.isNotEmpty()) Text("No compatible: ${assessment.incompatibilities.joinToString()}")
+                    }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (assessment.incompatibilities.isNotEmpty()) {
+                        Text("No compatible: ${assessment.incompatibilities.joinToString()}", color = MaterialTheme.colorScheme.error)
+                    }
                     else if (assessment.channelAllowed) {
                         if (artifact.source != Source.GooglePlay && artifact.downloadMode != DownloadMode.Unavailable) TextButton(enabled = !busy, onClick = {
                             select(WebChoice(packageName, artifact.versionCode, artifact.source, artifact.packageType,
@@ -222,8 +240,9 @@ internal fun WebSourcesCard(
                 }
             }
             choice?.let { selected ->
-                HorizontalDivider()
-                Text("Selección: ${selected.packageName} · ${selected.source} · ${selected.type}")
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Text("Descargar o importar", style = MaterialTheme.typography.titleMedium)
+                Text("Selección: ${selected.packageName} · ${selected.source} · ${selected.type}", style = MaterialTheme.typography.bodyMedium)
                 OutlinedTextField(code, { code = it.filter(Char::isDigit).take(19) },
                     label = { Text("Código de versión que debe tener el archivo") }, singleLine = true,
                     enabled = !busy && selected.versionCode == null, modifier = Modifier.fillMaxWidth())

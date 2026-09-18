@@ -53,69 +53,88 @@ internal fun SettingsRoute(
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
     ) {
-        Text("Retención tras instalar", style = MaterialTheme.typography.headlineSmall)
-        Text(
-            "Los paquetes se guardan sólo en el espacio privado de FrankUpdater.",
-            modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
-        )
-        RetentionOption(
-            title = "Preguntar",
-            description = "Elegir entre eliminar o conservar después de cada instalación.",
-            selected = policy == PackageRetentionPolicy.Ask,
-            onClick = {
-                policy = PackageRetentionPolicy.Ask
-                retentionPreferences.policy = policy
-            },
-        )
-        RetentionOption(
-            title = "Eliminar automáticamente",
-            description = "Borrar el archivo importado cuando la instalación termine correctamente.",
-            selected = policy == PackageRetentionPolicy.DeleteAutomatically,
-            onClick = {
-                policy = PackageRetentionPolicy.DeleteAutomatically
-                retentionPreferences.policy = policy
-            },
-        )
-        RetentionOption(
-            title = "Conservar siempre",
-            description = "Añadir cada paquete verificado a la biblioteca local.",
-            selected = policy == PackageRetentionPolicy.KeepAlways,
-            onClick = {
-                policy = PackageRetentionPolicy.KeepAlways
-                retentionPreferences.policy = policy
-            },
-        )
-        Text("Método de instalación", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp))
-        Text("Automático usa Shizuku si ya tiene permiso; en otro caso usa Sistema. Root solo se solicita al instalar con ese modo.")
-        InstallerMode.entries.forEach { option ->
-            RetentionOption(option.label, "", mode == option) { mode = option; installer.mode = option }
+        UiSection(
+            title = "Retención tras instalar",
+            supporting = "Los paquetes se guardan solo en el espacio privado de FrankUpdater.",
+        ) {
+            RetentionOption(
+                title = "Preguntar",
+                description = "Elegir entre eliminar o conservar después de cada instalación.",
+                selected = policy == PackageRetentionPolicy.Ask,
+                onClick = {
+                    policy = PackageRetentionPolicy.Ask
+                    retentionPreferences.policy = policy
+                },
+            )
+            RetentionOption(
+                title = "Eliminar automáticamente",
+                description = "Borrar el archivo importado cuando la instalación termine correctamente.",
+                selected = policy == PackageRetentionPolicy.DeleteAutomatically,
+                onClick = {
+                    policy = PackageRetentionPolicy.DeleteAutomatically
+                    retentionPreferences.policy = policy
+                },
+            )
+            RetentionOption(
+                title = "Conservar siempre",
+                description = "Añadir cada paquete verificado a la biblioteca local.",
+                selected = policy == PackageRetentionPolicy.KeepAlways,
+                onClick = {
+                    policy = PackageRetentionPolicy.KeepAlways
+                    retentionPreferences.policy = policy
+                },
+            )
         }
-        Button(onClick = {
-            message = try {
-                check(Shizuku.pingBinder())
-                if (Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED) "Shizuku autorizado."
-                else { Shizuku.requestPermission(7); "Confirma el permiso en Shizuku y vuelve a instalar." }
-            } catch (_: Exception) { "Inicia Shizuku antes de solicitar acceso." }
-        }) { Text("Autorizar Shizuku") }
-        Text("Comprobaciones periódicas", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp))
-        Text("Cada 24 horas, con red y batería suficiente. Se comparte con APKPure únicamente la lista seleccionada. No se descargan ni instalan paquetes.")
-        OutlinedTextField(packages, { packages = it }, label = { Text("Paquetes, uno por línea (máximo 50)") }, modifier = Modifier.fillMaxWidth())
-        Button(onClick = {
-            try {
-                updates.packages = packages.lines().map(String::trim).filter(String::isNotBlank).toSet()
-                UpdateSchedule.configure(context)
-                message = "Paquetes guardados."
-            } catch (error: IllegalArgumentException) { message = error.message ?: "Nombre de paquete inválido." }
-        }) { Text("Guardar paquetes") }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Switch(enabled, onCheckedChange = {
-                enabled = it; updates.enabled = it; UpdateSchedule.configure(context)
-                if (it && android.os.Build.VERSION.SDK_INT >= 33) notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-            })
-            Text("Comprobar cada 24 horas")
+        UiSection(
+            title = "Método de instalación",
+            supporting = "Automático usa Shizuku si ya tiene permiso; en otro caso usa Sistema. Root solo se solicita al elegirlo.",
+            modifier = Modifier.padding(top = 24.dp),
+        ) {
+            InstallerMode.entries.forEach { option ->
+                RetentionOption(option.label, installerDescription(option), mode == option) {
+                    mode = option
+                    installer.mode = option
+                }
+            }
+            Button(onClick = {
+                message = try {
+                    check(Shizuku.pingBinder())
+                    if (Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED) "Shizuku autorizado."
+                    else { Shizuku.requestPermission(7); "Confirma el permiso en Shizuku y vuelve a instalar." }
+                } catch (_: Exception) { "Inicia Shizuku antes de solicitar acceso." }
+            }) { Text("Autorizar Shizuku") }
         }
-        if (message.isNotBlank()) Text(message)
+        UiSection(
+            title = "Comprobaciones periódicas",
+            supporting = "Cada 24 horas, con red y batería suficiente. Solo se comparte la lista seleccionada con APKPure; no se descarga ni instala nada.",
+            modifier = Modifier.padding(top = 24.dp),
+        ) {
+            OutlinedTextField(packages, { packages = it }, label = { Text("Paquetes, uno por línea (máximo 50)") }, modifier = Modifier.fillMaxWidth())
+            Button(onClick = {
+                try {
+                    updates.packages = packages.lines().map(String::trim).filter(String::isNotBlank).toSet()
+                    UpdateSchedule.configure(context)
+                    message = "Paquetes guardados."
+                } catch (error: IllegalArgumentException) { message = error.message ?: "Nombre de paquete inválido." }
+            }) { Text("Guardar paquetes") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(enabled, onCheckedChange = {
+                    enabled = it; updates.enabled = it; UpdateSchedule.configure(context)
+                    if (it && android.os.Build.VERSION.SDK_INT >= 33) notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                })
+                Text("Comprobar cada 24 horas")
+            }
+            if (message.isNotBlank()) Text(message, color = MaterialTheme.colorScheme.primary)
+        }
     }
+}
+
+private fun installerDescription(mode: InstallerMode) = when (mode) {
+    InstallerMode.System -> "Usa el instalador de Android y admite APK con splits."
+    InstallerMode.Automatic -> "Prefiere Shizuku autorizado; si no, usa el instalador del sistema."
+    InstallerMode.Shizuku -> "Instala mediante una sesión privilegiada de Shizuku."
+    InstallerMode.Root -> "Instala mediante una sesión privilegiada con Root."
+    InstallerMode.Legacy -> "Solo APK único; no admite splits ni actualizaciones por lote."
 }
 
 @Composable
