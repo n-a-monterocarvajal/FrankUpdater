@@ -22,7 +22,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -30,7 +29,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +65,12 @@ private val packageMimeTypes = arrayOf(
     "application/octet-stream",
 )
 
+// The pending import outlives tab switches and the permission round trip; it is closed only when replaced,
+// discarded, or deleted after installation.
+// ponytail: one pending import per process; move to a ViewModel if several screens need their own.
+private val pendingImport = mutableStateOf<PreparedPackageImport?>(null)
+private val pendingImportRetained = mutableStateOf(false)
+
 @Composable
 internal fun LibraryRoute(
     pipeline: LocalPackagePipeline,
@@ -79,15 +83,14 @@ internal fun LibraryRoute(
     val scope = rememberCoroutineScope()
     val router = remember { InstallerRouter(context, sessionInstaller) }
     var reloadToken by remember { mutableIntStateOf(0) }
-    var selected by remember { mutableStateOf<PreparedPackageImport?>(null) }
-    var selectedRetained by remember { mutableStateOf(false) }
+    var selected by pendingImport
+    var selectedRetained by pendingImportRetained
     var importing by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var activeSessionId by remember { mutableStateOf<Int?>(null) }
     var installing by remember { mutableStateOf(false) }
     var installMessage by remember { mutableStateOf<String?>(null) }
     var retentionDecisionNeeded by remember { mutableStateOf(false) }
-    val latestSelected by rememberUpdatedState(selected)
     val entries by produceState(initialValue = emptyList<PackageLibraryEntry>(), reloadToken) {
         value = withContext(Dispatchers.IO) { library.list() }
     }
@@ -169,9 +172,6 @@ internal fun LibraryRoute(
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose { latestSelected?.close() }
-    }
 
     Column(modifier = modifier.fillMaxSize()) {
         UiSection(
@@ -230,7 +230,7 @@ internal fun LibraryRoute(
             }
         }
         errorMessage?.let { message ->
-            Card(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Importación rechazada", fontWeight = FontWeight.SemiBold)
                     Text(message, modifier = Modifier.padding(top = 4.dp))
@@ -361,7 +361,7 @@ private fun VerifiedImportCard(
     val packageArchive = prepared.verified
     val legacyUnsupported = installerMode == InstallerMode.Legacy &&
         (packageArchive.apks.size != 1 || !packageArchive.apks.single().isBase)
-    Card(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Paquete verificado", color = MaterialTheme.colorScheme.primary)
             Text(

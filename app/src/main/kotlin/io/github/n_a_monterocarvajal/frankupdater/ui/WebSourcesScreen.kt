@@ -3,8 +3,12 @@ package io.github.n_a_monterocarvajal.frankupdater.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.text.format.Formatter
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,7 +35,8 @@ private data class WebChoice(val packageName: String, val versionCode: Long?, va
 @Composable
 internal fun WebSourcesCard(
     pipeline: LocalPackagePipeline, library: LocalPackageLibrary, device: GenericDeviceProfile?,
-    entries: List<CatalogEntry>, onEntries: (List<CatalogEntry>) -> Unit,
+    entries: List<CatalogEntry>, requestedPackage: String?, onPackageConsumed: () -> Unit,
+    onEntries: (List<CatalogEntry>) -> Unit,
     onVerified: (CatalogEntry) -> Unit,
     playConnected: Boolean, onPlayVersion: (String, Long) -> Unit,
 ) {
@@ -45,6 +50,8 @@ internal fun WebSourcesCard(
     var choice by remember { mutableStateOf<WebChoice?>(null) }
     var code by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var job by remember { mutableStateOf<Job?>(null) }
+    var progress by remember { mutableStateOf<Pair<Long, Long>?>(null) }
     var includePreviews by rememberSaveable { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var failedSources by remember { mutableStateOf<Set<Source>>(emptySet()) }
@@ -64,7 +71,12 @@ internal fun WebSourcesCard(
                     val page = MirrorParser.downloadPage(client.text(selected.url, selected.source), selected.url)
                     MirrorParser.downloadUrl(client.text(page, selected.source), page)
                 }
-                client.download(url, selected.source, File(directory, "download.$extension"), headers, selected.sha256, selected.sizeBytes)
+                var shownAt = 0L
+                client.download(url, selected.source, File(directory, "download.$extension"), headers, selected.sha256, selected.sizeBytes) {
+                    bytes, total ->
+                    // Throttle state writes: one per 256 KiB is enough for a smooth bar.
+                    if (bytes - shownAt >= 262_144 || bytes == total) { shownAt = bytes; progress = bytes to total }
+                }
             }
             pipeline.importDownloadedArchive(archive, "${selected.packageName}-$expectedCode.$extension",
                 selected.packageName, expectedCode, selected.url, if (capturedUrl == null) "direct-${selected.source.name}" else "assisted-web").use {
@@ -76,20 +88,26 @@ internal fun WebSourcesCard(
                 onVerified(verifiedEntry)
             }
             message = "Paquete verificado y guardado en Biblioteca."
-        } finally { withContext(Dispatchers.IO + NonCancellable) { directory.deleteRecursively() } }
+        } finally {
+            progress = null
+            withContext(Dispatchers.IO + NonCancellable) { directory.deleteRecursively() }
+        }
     }
 
     fun act(source: Source, action: suspend () -> Unit) {
-        scope.launch {
+        job = scope.launch {
             busy = true
             message = ""
             try { action(); failedSources = failedSources - source }
-            catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) {
+            catch (cancelled: CancellationException) { message = "Operación cancelada."; throw cancelled }
+            catch (error: Exception) {
+                // Cancelling interrupts OkHttp, which surfaces as InterruptedIOException rather than cancellation.
+                if (!isActive) { message = "Operación cancelada."; return@launch }
+                Log.w("FrankUpdater", "Web source operation failed", error)
                 failedSources = failedSources + source
-                message = "No se pudo completar la operación. Puedes continuar en la web e importar el archivo; " +
-                    "su paquete, versión y firma se comprobarán antes de conservarlo."
-            } finally { busy = false }
+                message = "No se pudo completar la operación (${failureReason(error)}). Puedes continuar en la web " +
+                    "e importar el archivo; su paquete, versión y firma se comprobarán antes de conservarlo."
+            } finally { busy = false; job = null }
         }
     }
 
@@ -109,6 +127,31 @@ internal fun WebSourcesCard(
             message = "Paquete verificado y guardado en Biblioteca."
         }
     }
+
+    fun consultPure() {
+        act(Source.ApkPure) {
+            requirePackageName(packageName)
+            val found = runInterruptible(Dispatchers.IO) {
+                PureParser.history(client.text("https://tapi.pureapk.com/v3/get_app_his_version?package_name=$packageName&hl=en",
+                    Source.ApkPure, mapOf("Ual-Access-Businessid" to "projecta", "Ual-Access-ProjectA" to
+                        "{\"device_info\":{\"os_ver\":\"${requireNotNull(device).sdk}\"}}")), packageName)
+            }
+            onEntries(found)
+            message = "Historial consultado. Revisa versión y variante antes de descargar."
+        }
+    }
+
+    // An update result opened this screen: query its history right away instead of asking to retype the package.
+    LaunchedEffect(requestedPackage, device) {
+        val requested = requestedPackage ?: return@LaunchedEffect
+        if (device == null) return@LaunchedEffect
+        packageName = requested; releases = emptyList(); variants = emptyList(); choice = null; failedSources = emptySet()
+        onPackageConsumed()
+        consultPure()
+    }
+
+    val panel = remember { BringIntoViewRequester() }
+    LaunchedEffect(choice) { if (choice != null) { withFrameNanos { }; panel.bringIntoView() } }
 
     fun select(value: WebChoice) { choice = value; code = value.versionCode?.toString().orEmpty() }
     fun browser(url: String, source: Source) {
@@ -140,18 +183,9 @@ internal fun WebSourcesCard(
                 packageName = it.take(255); releases = emptyList(); variants = emptyList(); choice = null; failedSources = emptySet()
             }, label = { Text("Paquete (ejemplo: org.fossify.math)") }, singleLine = true, enabled = !busy,
                 modifier = Modifier.fillMaxWidth())
-            Button(enabled = !busy && device != null && packageName.isNotBlank(), onClick = {
-                act(Source.ApkPure) {
-                    requirePackageName(packageName)
-                    val found = runInterruptible(Dispatchers.IO) {
-                        PureParser.history(client.text("https://tapi.pureapk.com/v3/get_app_his_version?package_name=$packageName&hl=en",
-                            Source.ApkPure, mapOf("Ual-Access-Businessid" to "projecta", "Ual-Access-ProjectA" to
-                                "{\"device_info\":{\"os_ver\":\"${requireNotNull(device).sdk}\"}}")), packageName)
-                    }
-                    onEntries(found)
-                    message = "Historial consultado. Revisa versión y variante antes de descargar."
-                }
-            }) { Text("Consultar APKPure") }
+            Button(enabled = !busy && device != null && packageName.isNotBlank(), onClick = ::consultPure) {
+                Text("Consultar APKPure")
+            }
             OutlinedTextField(mirrorUrl, { mirrorUrl = it.take(2048); releases = emptyList(); variants = emptyList(); choice = null },
                 label = { Text("Página de aplicación o release en APKMirror") }, singleLine = true, enabled = !busy,
                 modifier = Modifier.fillMaxWidth())
@@ -239,7 +273,7 @@ internal fun WebSourcesCard(
                     TextButton(onClick = { shown += 50 }) { Text("Mostrar más versiones") }
                 }
             }
-            choice?.let { selected ->
+            choice?.let { selected -> Column(Modifier.bringIntoViewRequester(panel), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 Text("Descargar o importar", style = MaterialTheme.typography.titleMedium)
                 Text("Selección: ${selected.packageName} · ${selected.source} · ${selected.type}", style = MaterialTheme.typography.bodyMedium)
@@ -252,6 +286,7 @@ internal fun WebSourcesCard(
                         download(selected, requireNotNull(expectedCode))
                     }
                 }) { Text("Descargar y verificar") }
+                progress?.let { (bytes, total) -> DownloadProgress(bytes, total) { job?.cancel() } }
                 Button(enabled = !busy && expectedCode != null, onClick = {
                     assisted = selected.copy(versionCode = expectedCode)
                 }) { Text("Continuar en web asistida") }
@@ -260,9 +295,32 @@ internal fun WebSourcesCard(
                     pendingImport = selected.copy(versionCode = expectedCode)
                     picker.launch(arrayOf("application/vnd.android.package-archive", "application/octet-stream", "application/zip", "*/*"))
                 }) { Text("Seleccionar archivo descargado") }
-            }
+            } }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (message.isNotBlank()) Text(message)
         }
     }
+}
+
+@Composable
+private fun DownloadProgress(bytes: Long, total: Long, onCancel: () -> Unit) {
+    val context = LocalContext.current
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (total > 0) LinearProgressIndicator({ (bytes.toFloat() / total).coerceIn(0f, 1f) }, Modifier.fillMaxWidth())
+        else LinearProgressIndicator(Modifier.fillMaxWidth())
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(Formatter.formatShortFileSize(context, bytes) +
+                (if (total > 0) " de " + Formatter.formatShortFileSize(context, total) else ""),
+                Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = onCancel) { Text("Cancelar") }
+        }
+    }
+}
+
+private fun failureReason(error: Exception): String = when (error) {
+    is java.net.SocketTimeoutException, is java.io.InterruptedIOException -> "la fuente dejó de enviar datos"
+    is java.net.UnknownHostException -> "sin conexión"
+    is java.io.IOException -> error.message ?: "error de red"
+    is IllegalArgumentException, is IllegalStateException -> "el archivo no coincide con lo esperado"
+    else -> error.javaClass.simpleName
 }

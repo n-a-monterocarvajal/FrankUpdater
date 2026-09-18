@@ -18,7 +18,8 @@ import java.text.DateFormat
 import java.util.Date
 
 @Composable
-internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDeviceProfileProvider, modifier: Modifier = Modifier) {
+internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDeviceProfileProvider,
+    onOpenPackage: (String) -> Unit, modifier: Modifier = Modifier) {
     var checks by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val preferences = remember { UpdatePreferences(context) }
@@ -70,13 +71,13 @@ internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDev
                     }
                 }
                 items(rows, key = { it.packageName }) { row ->
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(onClick = { onOpenPackage(row.packageName) }, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp)) {
                             Text(row.packageName, style = MaterialTheme.typography.titleMedium)
                             Text("Instalada: ${row.installed} · Disponible: ${row.available ?: "Sin confirmar"}")
                             Text(row.status, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                "Consulta este paquete en Buscar para descargar y verificar la versión.",
+                                "Toca para consultar fuentes, descargar y verificar.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

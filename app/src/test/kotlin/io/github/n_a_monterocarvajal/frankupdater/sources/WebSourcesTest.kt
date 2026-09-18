@@ -5,6 +5,7 @@ import java.io.File
 import java.nio.file.Files
 import okhttp3.*
 import okhttp3.ResponseBody.Companion.toResponseBody
+import okio.buffer
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -105,7 +106,11 @@ class WebSourcesTest {
         try {
             val file = File(directory, "download.apk")
             val client = WebSourceClient(OkHttpClient.Builder().addInterceptor { reply(it.request(), 200, "fixture bytes") }.build())
-            assertEquals("fixture bytes", client.download(mirror, Source.ApkMirror, file).readText())
+            var progress = 0L to 0L
+            assertEquals("fixture bytes", client.download(mirror, Source.ApkMirror, file) { bytes, total ->
+                progress = bytes to total
+            }.readText())
+            assertEquals(13L to 13L, progress)
             file.delete()
             assertThrows(IllegalArgumentException::class.java) {
                 client.download(mirror, Source.ApkMirror, file, expectedSha256 = "0".repeat(64))
@@ -118,6 +123,33 @@ class WebSourcesTest {
             val blocked = WebSourceClient(OkHttpClient.Builder().addInterceptor { reply(it.request(), 403) }.build())
             assertThrows(java.io.IOException::class.java) { blocked.download(mirror, Source.ApkMirror, file) }
             assertFalse(file.exists())
+        } finally { directory.deleteRecursively() }
+    }
+
+    @Test fun `download resumes a dropped transfer with Range and keeps the full hash`() {
+        val directory = Files.createTempDirectory("web-resume-test").toFile()
+        try {
+            val ranges = mutableListOf<String?>()
+            val client = WebSourceClient(OkHttpClient.Builder().addInterceptor { chain ->
+                val range = chain.request().header("Range").also(ranges::add)
+                if (range == null) {
+                    // Announces 13 bytes, delivers 7, then the connection drops.
+                    val dropping = object : okio.ForwardingSource(okio.Buffer().writeUtf8("fixture")) {
+                        override fun read(sink: okio.Buffer, byteCount: Long): Long =
+                            super.read(sink, byteCount).also { if (it < 0) throw java.io.IOException("connection abort") }
+                    }
+                    reply(chain.request(), 200).newBuilder().body(object : ResponseBody() {
+                        override fun contentType() = null
+                        override fun contentLength() = 13L
+                        override fun source() = dropping.buffer()
+                    }).build()
+                } else reply(chain.request(), 206, " bytes").newBuilder().header("Content-Range", "bytes 7-12/13").build()
+            }.build())
+            val sha = java.security.MessageDigest.getInstance("SHA-256").digest("fixture bytes".toByteArray())
+                .joinToString("") { "%02x".format(it) }
+            val file = client.download(mirror, Source.ApkMirror, File(directory, "download.apk"), expectedSha256 = sha)
+            assertEquals("fixture bytes", file.readText())
+            assertEquals(listOf(null, "bytes=7-"), ranges)
         } finally { directory.deleteRecursively() }
     }
 

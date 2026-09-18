@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import androidx.core.content.FileProvider
+import io.github.n_a_monterocarvajal.frankupdater.compatibility.ConfigSplitSelector
 import io.github.n_a_monterocarvajal.frankupdater.verification.VerifiedPackageArchive
 import java.io.File
 import kotlinx.coroutines.*
@@ -42,7 +43,8 @@ class InstallerRouter(context: Context, private val system: SystemSessionInstall
         Shizuku.pingBinder() && !Shizuku.isPreV11() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
     }.getOrDefault(false)
 
-    suspend fun install(archive: VerifiedPackageArchive): InstallRequestResult = installLock.withLock {
+    suspend fun install(verified: VerifiedPackageArchive): InstallRequestResult = installLock.withLock {
+        val archive = deviceSplits(verified)
         when (selectedInstaller(preferences.mode, shizukuGranted())) {
             InstallerMode.System, InstallerMode.Automatic -> system.install(archive)
             InstallerMode.Legacy -> {
@@ -70,6 +72,13 @@ class InstallerRouter(context: Context, private val system: SystemSessionInstall
                 InstallRequestResult.Finished
             }
         }
+    }
+
+    /** Installs only the config splits this device needs; bundles from web sources ship every ABI and density. */
+    private fun deviceSplits(archive: VerifiedPackageArchive): VerifiedPackageArchive {
+        val keep = ConfigSplitSelector.select(archive.apks.map { if (it.isBase) null else it.splitName },
+            Build.SUPPORTED_ABIS.toList(), context.resources.displayMetrics.densityDpi)
+        return archive.copy(apks = archive.apks.filterIndexed { index, _ -> index in keep })
     }
 
     private suspend fun installWithShizuku(archive: VerifiedPackageArchive) {

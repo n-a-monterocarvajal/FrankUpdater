@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -86,6 +87,12 @@ fun FrankUpdaterApp(
     )
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     val destinations = NavigationDestination.entries
+    // Package handed from an update result to Search, consumed once Search starts the query.
+    var requestedPackage by rememberSaveable { mutableStateOf<String?>(null) }
+    val openPackage = { packageName: String ->
+        requestedPackage = packageName
+        selectedIndex = destinations.indexOf(NavigationDestination.Search)
+    }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         if (useNavigationRail) {
@@ -119,6 +126,9 @@ fun FrankUpdaterApp(
                     packageLibrary = packageLibrary,
                     retentionPreferences = retentionPreferences,
                     sessionInstaller = sessionInstaller,
+                    requestedPackage = requestedPackage,
+                    onOpenPackage = openPackage,
+                    onPackageConsumed = { requestedPackage = null },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -153,6 +163,9 @@ fun FrankUpdaterApp(
                     packageLibrary = packageLibrary,
                     retentionPreferences = retentionPreferences,
                     sessionInstaller = sessionInstaller,
+                    requestedPackage = requestedPackage,
+                    onOpenPackage = openPackage,
+                    onPackageConsumed = { requestedPackage = null },
                     modifier = Modifier.padding(contentPadding),
                 )
             }
@@ -169,6 +182,9 @@ private fun DestinationContent(
     packageLibrary: LocalPackageLibrary,
     retentionPreferences: RetentionPreferences,
     sessionInstaller: SystemSessionInstaller,
+    requestedPackage: String?,
+    onOpenPackage: (String) -> Unit,
+    onPackageConsumed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -187,6 +203,7 @@ private fun DestinationContent(
             NavigationDestination.Updates -> UpdatesRoute(
                 installedAppRepository,
                 deviceProfileProvider,
+                onOpenPackage,
                 Modifier.fillMaxSize(),
             )
             NavigationDestination.Library -> LibraryRoute(
@@ -200,7 +217,7 @@ private fun DestinationContent(
                 retentionPreferences,
                 Modifier.fillMaxSize(),
             )
-            NavigationDestination.Search -> PlayRoute(packagePipeline, packageLibrary)
+            NavigationDestination.Search -> PlayRoute(packagePipeline, packageLibrary, requestedPackage, onPackageConsumed)
         }
     }
 }

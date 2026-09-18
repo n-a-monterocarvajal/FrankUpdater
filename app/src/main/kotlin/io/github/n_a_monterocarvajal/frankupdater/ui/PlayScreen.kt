@@ -55,7 +55,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 
 @Composable
-internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibrary) {
+internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibrary,
+    requestedPackage: String? = null, onPackageConsumed: () -> Unit = {}) {
     val context = LocalContext.current.applicationContext
     val preferences = remember { context.getSharedPreferences("play", 0) }
     val credentialStore = remember { PlayCredentialStore(context) }
@@ -95,7 +96,7 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            WebSourcesCard(pipeline, library, device, catalogEntries,
+            WebSourcesCard(pipeline, library, device, catalogEntries, requestedPackage, onPackageConsumed,
                 onEntries = { incoming ->
                     val refreshed = incoming.map { it.artifact.packageName to it.artifact.source }.toSet()
                     catalogEntries = catalogEntries.filterNot {
