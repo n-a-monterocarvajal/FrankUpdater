@@ -10,6 +10,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -32,6 +35,27 @@ private data class WebChoice(val packageName: String, val versionCode: Long?, va
     val sha256: String? = null, val sizeBytes: Long? = null,
     val channel: ReleaseChannel = ReleaseChannel.Unknown)
 
+/**
+ * Search state and running operations outlive the Search tab: switching tabs neither cancels a download nor
+ * clears the query. ponytail: process lifetime only; a foreground WorkManager download (with notification) is the
+ * upgrade if downloads must survive the app being backgrounded and killed.
+ */
+private object WebSearch {
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    val client = WebSourceClient()
+    val packageName = mutableStateOf("")
+    val mirrorUrl = mutableStateOf("")
+    val releases = mutableStateOf<List<WebRelease>>(emptyList())
+    val variants = mutableStateOf<List<MirrorVariant>>(emptyList())
+    val choice = mutableStateOf<WebChoice?>(null)
+    val code = mutableStateOf("")
+    val busy = mutableStateOf(false)
+    val job = mutableStateOf<Job?>(null)
+    val progress = mutableStateOf<Pair<Long, Long>?>(null)
+    val message = mutableStateOf("")
+    val failedSources = mutableStateOf<Set<Source>>(emptySet())
+}
+
 @Composable
 internal fun WebSourcesCard(
     pipeline: LocalPackagePipeline, library: LocalPackageLibrary, device: GenericDeviceProfile?,
@@ -41,20 +65,20 @@ internal fun WebSourcesCard(
     playConnected: Boolean, onPlayVersion: (String, Long) -> Unit,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val client = remember { WebSourceClient() }
-    var packageName by rememberSaveable { mutableStateOf("") }
-    var mirrorUrl by rememberSaveable { mutableStateOf("") }
-    var releases by remember { mutableStateOf<List<WebRelease>>(emptyList()) }
-    var variants by remember { mutableStateOf<List<MirrorVariant>>(emptyList()) }
-    var choice by remember { mutableStateOf<WebChoice?>(null) }
-    var code by rememberSaveable { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
-    var job by remember { mutableStateOf<Job?>(null) }
-    var progress by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+    val scope = WebSearch.scope
+    val client = WebSearch.client
+    var packageName by WebSearch.packageName
+    var mirrorUrl by WebSearch.mirrorUrl
+    var releases by WebSearch.releases
+    var variants by WebSearch.variants
+    var choice by WebSearch.choice
+    var code by WebSearch.code
+    var busy by WebSearch.busy
+    var job by WebSearch.job
+    var progress by WebSearch.progress
     var includePreviews by rememberSaveable { mutableStateOf(false) }
-    var message by remember { mutableStateOf("") }
-    var failedSources by remember { mutableStateOf<Set<Source>>(emptySet()) }
+    var message by WebSearch.message
+    var failedSources by WebSearch.failedSources
     var pendingImport by remember { mutableStateOf<WebChoice?>(null) }
     var assisted by remember { mutableStateOf<WebChoice?>(null) }
     var shown by remember(packageName, releases, variants, entries) { mutableIntStateOf(50) }
@@ -78,6 +102,8 @@ internal fun WebSourcesCard(
                     if (bytes - shownAt >= 262_144 || bytes == total) { shownAt = bytes; progress = bytes to total }
                 }
             }
+            progress = null
+            message = "Descarga completa. Verificando paquete…"
             pipeline.importDownloadedArchive(archive, "${selected.packageName}-$expectedCode.$extension",
                 selected.packageName, expectedCode, selected.url, if (capturedUrl == null) "direct-${selected.source.name}" else "assisted-web").use {
                 prepared ->
@@ -182,12 +208,14 @@ internal fun WebSourcesCard(
             OutlinedTextField(packageName, {
                 packageName = it.take(255); releases = emptyList(); variants = emptyList(); choice = null; failedSources = emptySet()
             }, label = { Text("Paquete (ejemplo: org.fossify.math)") }, singleLine = true, enabled = !busy,
+                keyboardOptions = literalKeyboard(KeyboardType.Ascii),
                 modifier = Modifier.fillMaxWidth())
             Button(enabled = !busy && device != null && packageName.isNotBlank(), onClick = ::consultPure) {
                 Text("Consultar APKPure")
             }
             OutlinedTextField(mirrorUrl, { mirrorUrl = it.take(2048); releases = emptyList(); variants = emptyList(); choice = null },
                 label = { Text("Página de aplicación o release en APKMirror") }, singleLine = true, enabled = !busy,
+                keyboardOptions = literalKeyboard(KeyboardType.Uri),
                 modifier = Modifier.fillMaxWidth())
             Button(enabled = !busy && packageName.isNotBlank() && mirrorUrl.isNotBlank(), onClick = {
                 act(Source.ApkMirror) {
@@ -324,3 +352,7 @@ private fun failureReason(error: Exception): String = when (error) {
     is IllegalArgumentException, is IllegalStateException -> "el archivo no coincide con lo esperado"
     else -> error.javaClass.simpleName
 }
+
+/** Package names and URLs are identifiers: no autocorrection or capitalization from the IME. */
+internal fun literalKeyboard(type: KeyboardType) =
+    KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, keyboardType = type)

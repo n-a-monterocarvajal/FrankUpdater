@@ -109,7 +109,8 @@ internal fun SettingsRoute(
             supporting = "Cada 24 horas, con red y batería suficiente. Solo se comparte la lista seleccionada con APKPure; no se descarga ni instala nada.",
             modifier = Modifier.padding(top = 24.dp),
         ) {
-            OutlinedTextField(packages, { packages = it }, label = { Text("Paquetes, uno por línea (máximo 50)") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(packages, { packages = it }, label = { Text("Paquetes, uno por línea (máximo 50)") },
+                keyboardOptions = literalKeyboard(androidx.compose.ui.text.input.KeyboardType.Ascii), modifier = Modifier.fillMaxWidth())
             Button(onClick = {
                 try {
                     updates.packages = packages.lines().map(String::trim).filter(String::isNotBlank).toSet()

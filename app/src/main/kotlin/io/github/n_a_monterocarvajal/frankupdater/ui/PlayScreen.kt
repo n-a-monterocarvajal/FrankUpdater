@@ -54,6 +54,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 
+// Survives tab switches together with the Search state in WebSourcesScreen.
+private val searchCatalogEntries = mutableStateOf<List<CatalogEntry>>(emptyList())
+
 @Composable
 internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibrary,
     requestedPackage: String? = null, onPackageConsumed: () -> Unit = {}) {
@@ -71,7 +74,7 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
     var selected by remember { mutableStateOf<App?>(null) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
-    var catalogEntries by remember { mutableStateOf<List<CatalogEntry>>(emptyList()) }
+    var catalogEntries by searchCatalogEntries
     val device by produceState<GenericDeviceProfile?>(null) {
         value = runInterruptible(Dispatchers.IO) { AndroidGenericDeviceProfileProvider(context).getDeviceProfile() }
     }
@@ -147,6 +150,7 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                     Text("Introduce un servidor compatible. Al conectar, se compartirá el perfil del dispositivo " +
                         "con ese servidor y Google para obtener aplicaciones adecuadas. No necesitas una cuenta personal.")
                     OutlinedTextField(endpoint, { endpoint = it }, label = { Text("Dirección HTTPS del servidor") },
+                        keyboardOptions = literalKeyboard(androidx.compose.ui.text.input.KeyboardType.Uri),
                         singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
                     Button(enabled = !busy && endpoint.isNotBlank(), onClick = {
                         act {

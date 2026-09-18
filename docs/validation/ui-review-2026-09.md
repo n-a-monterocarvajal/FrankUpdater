@@ -119,6 +119,9 @@ Instalación con el permiso "Instalar apps desconocidas" concedido:
 | F-26 | Las tarjetas de la Biblioteca ocupan todo el ancho. | Emulador. |
 | F-29 | El paquete pendiente vive fuera de la composición; no se cierra al cambiar de pestaña. | Emulador: Aurora importado sigue tras pasar por Ajustes y Buscar. |
 | F-34 | `ConfigSplitSelector` (core/compatibility) elige por módulo el mejor split de ABI (orden del dispositivo) y de densidad (`ScreenDensitySelector`); el router instala solo esos. | Tests unitarios con el conjunto real de Fossify. Emulador: `splits=[base, config.x86_64, config.xxhdpi]` y la app arranca. |
+| F-07 | `KeyboardOptions` sin autocorrección ni mayúsculas en los campos de paquete (`Ascii`) y URL (`Uri`) de Buscar, en el servidor de Play y en la lista de paquetes de Ajustes. | Emulador: la URL de APKMirror queda en minúsculas y conserva la barra final. |
+| F-08, F-36 | El estado de Buscar (consulta, resultados, selección, progreso) y su scope viven fuera de la composición: cambiar de pestaña no cancela la descarga ni borra la consulta. Límite conocido: solo mientras viva el proceso (anotado con `ponytail:`); el siguiente paso es una descarga en `WorkManager` en primer plano con notificación. | Emulador: APKM de Focus (276 MB) siguió de 12 a 119 MB mientras se pasaba por Biblioteca y Ajustes; al volver, la selección seguía ahí. *Cancelar* muestra "Operación cancelada." y borra el parcial. |
+| F-38 | Al terminar la descarga se muestra "Descarga completa. Verificando paquete…". | Compilación. |
 
 Nuevo hallazgo durante la corrección:
 
