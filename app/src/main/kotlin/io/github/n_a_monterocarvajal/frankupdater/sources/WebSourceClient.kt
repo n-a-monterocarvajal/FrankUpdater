@@ -15,7 +15,9 @@ internal class WebSourceClient(client: OkHttpClient = OkHttpClient()) {
     private val client = client.newBuilder().followRedirects(false).followSslRedirects(false)
         // No total call timeout: large packages on slow links take longer than any fixed limit.
         // readTimeout still aborts a stalled transfer; metadata requests get 30 s per call below.
-        .connectTimeout(25, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()
+        .connectTimeout(25, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS)
+        // SDK_INT is 0 in JVM unit tests, so the extra root only applies on Android 7.1 and older.
+        .let { if (android.os.Build.VERSION.SDK_INT in 1..24) LegacyTrust.apply(it) else it }.build()
 
     fun text(url: String, source: Source, headers: Map<String, String> = emptyMap()): String =
         response(url, source, false, headers).use { response ->
