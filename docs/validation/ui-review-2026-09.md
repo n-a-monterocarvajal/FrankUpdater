@@ -135,6 +135,7 @@ Instalación con el permiso "Instalar apps desconocidas" concedido:
 
 | F-36 (completo) | Las descargas directas corren en `PackageDownloadWorker` (WorkManager en primer plano, `dataSync`), con notificación de progreso y *Cancelar*; Buscar refleja su progreso y resultado. La web asistida sigue en proceso porque sus cookies no deben guardarse en la base de WorkManager. | Emulador: con la app en segundo plano (pantalla de inicio), el worker descargó y verificó Fossify 1.2.0 y lo rechazó correctamente por *Downgrade* frente a la 1.4.0 instalada. |
 | Actualización automática | Opción por app en los resultados. La comprobación periódica encola descarga e instalación solo para versiones con la firma confirmada. La sesión usa `USER_ACTION_NOT_REQUIRED` (Android 12+, permiso `UPDATE_PACKAGES_WITHOUT_USER_ACTION`): Android no pregunta cuando FrankUpdater es el instalador registrado. Si aún pide confirmación, el receptor muestra una notificación en lugar de abrir una actividad desde segundo plano. La retención sigue la política (*Conservar siempre* guarda; el resto no deja archivo). | Emulador: Obtainium reinstalada 1.6.14 con FrankUpdater como instalador; con la opción activa, la comprobación encontró 1.6.17 en F-Droid (firma leída del APK remoto) y la instaló sin ningún diálogo en unos 90 s (23533 → 23563). |
+| F-09 (no reproducible) | Sin cambio de código. Con el HTML real de la página de Focus, `MirrorParser.releases` devuelve las 10 releases del widget "All versions", y la app las muestra todas al desplazar (152.0.6 → 155.0.1). El "solo 2" original venía de la medición: `uiautomator` solo informa de los elementos visibles en pantalla. Límite conocido, no defecto: la página de la app solo publica las ~10 releases más recientes. | Test temporal con el HTML descargado; emulador API 36 (`emulator-5554`). |
 | Downgrades en Buscar | Las variantes inferiores a la versión instalada muestran "Inferior a la versión instalada" y las iguales "Es la versión instalada", sin botón de descarga. | Emulador: Fossify 1.4.0 instalada; 1.4.0 marcada como instalada y 1.3.0 como inferior. |
 
 Pendiente de validar en un teléfono Samsung: apps de Good Guardians desde APKMirror (librerías y features de One UI; las features del modal no se evalúan) y el primer paso con Galaxy Store como instalador registrado, que pedirá confirmación una vez.
@@ -159,7 +160,7 @@ Cola de trabajo. Cada hallazgo abierto de la tabla anterior es un pendiente; aqu
 
 Hallazgos abiertos:
 
-- **P1:** F-09 (la consulta manual de una app en APKMirror muestra solo 2 releases).
+- **P1:** ninguno.
 - **P2:** F-15 (Buscar no busca por nombre), F-17 (sin progreso de la comprobación), F-19/F-25 (la lista de Ajustes duplica la selección del Inventario), F-20 (filtro por defecto "Todas"), F-21 (cabecera del Inventario), F-30 ("Reinstalar" sin estar instalada), F-39 (Material 3 Expressive), F-40 (jerarquía de la lista de versiones).
 - **P3:** F-22, F-23, F-24, F-27, F-28, F-33, F-35.
 - **Condicional:** F-06, pasar las filas de Buscar a elementos de la `LazyColumn` si en un dispositivo real sigue habiendo tirones.
