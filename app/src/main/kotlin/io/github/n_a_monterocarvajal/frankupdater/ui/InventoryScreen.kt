@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -176,11 +177,12 @@ private fun InventoryContent(
     onCheckUpdates: (Set<String>) -> Unit,
     modifier: Modifier,
 ) {
-    val systemCount = state.apps.count(InstalledApp::isSystemApp)
+    val systemCount = remember(state.apps) { state.apps.count(InstalledApp::isSystemApp) }
     val userCount = state.apps.size - systemCount
     var query by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf(InventoryFilter.User) }
-    val visibleApps = filterInstalledApps(state.apps, query, filter)
+    // Filter only when its inputs change, not on every recomposition (selection, scrolling).
+    val visibleApps = remember(state.apps, query, filter) { filterInstalledApps(state.apps, query, filter) }
     val visibleSelection = selectedPackages.intersect(visibleApps.map(InstalledApp::packageName).toSet())
     val ownPackage = androidx.compose.ui.platform.LocalContext.current.packageName
 
@@ -362,13 +364,18 @@ private fun InstalledAppCard(
 }
 
 /** Icon loaded off the main thread, only for rows the grid actually composes. */
+// ponytail: 300 icons of 96×96 ≈ 11 MB at most; key by version too if stale icons after updates matter.
+private val iconCache = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(300)
+
 @Composable
 private fun AppIcon(packageName: String, modifier: Modifier) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val icon by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, packageName) {
-        value = withContext(Dispatchers.IO) {
+    // Cached per process: rows that re-enter the list (search, filters, scrolling) do not decode icons again.
+    val icon by androidx.compose.runtime.produceState(iconCache.get(packageName), packageName) {
+        if (value == null) value = withContext(Dispatchers.IO) {
             runCatching {
                 context.packageManager.getApplicationIcon(packageName).toBitmap(96, 96).asImageBitmap()
+                    .also { iconCache.put(packageName, it) }
             }.getOrNull()
         }
     }
