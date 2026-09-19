@@ -154,10 +154,11 @@ internal fun LibraryRoute(
     val documentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {
         uri -> if (uri != null) import(uri)
     }
+    var permissionReturns by remember { mutableIntStateOf(0) }
     val permissionSettings = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) {
-        installMessage = "Permiso revisado. Pulsa instalar de nuevo para continuar."
+        permissionReturns++
     }
     val legacyInstaller = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         scope.launch {
@@ -165,6 +166,50 @@ internal fun LibraryRoute(
                 InstallationEvent.Success(-1, selected?.verified?.packageName)
             else InstallationEvent.Failure(-1, result.resultCode, "Instalación cancelada o rechazada."))
         }
+    }
+
+    fun startInstall(prepared: PreparedPackageImport) {
+        scope.launch {
+            installing = true
+            installMessage = "Preparando la sesión de instalación…"
+            try {
+                when (val result = router.install(prepared.verified)) {
+                    InstallRequestResult.Finished -> {
+                        activeSessionId = -1
+                        handleInstallationEvent(InstallationEvent.Success(-1, prepared.verified.packageName))
+                    }
+                    is InstallRequestResult.Legacy -> {
+                        activeSessionId = -1
+                        legacyInstaller.launch(result.intent)
+                    }
+                    is InstallRequestResult.Committed -> {
+                        activeSessionId = result.sessionId
+                        installMessage = "Sesión enviada a Android."
+                        InstallationEvents.latest(result.sessionId)
+                            ?.let { handleInstallationEvent(it) }
+                    }
+                    is InstallRequestResult.PermissionRequired -> {
+                        installing = false
+                        installMessage = "Autoriza a FrankUpdater para instalar paquetes."
+                        permissionSettings.launch(result.settingsIntent)
+                    }
+                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Exception) {
+                installing = false
+                installMessage = "No se pudo crear la sesión: ${error.message}"
+            }
+        }
+    }
+
+    // Resume on return from the permission screen when it was granted (F-27).
+    LaunchedEffect(permissionReturns) {
+        if (permissionReturns == 0) return@LaunchedEffect
+        val granted = android.os.Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls()
+        val pending = selected
+        if (granted && pending != null) startInstall(pending)
+        else installMessage = "Sin permiso para instalar. Concédelo en Ajustes de Android y pulsa instalar de nuevo."
     }
 
     LaunchedEffect(Unit) {
@@ -247,40 +292,7 @@ internal fun LibraryRoute(
                 installerMode = router.preferences.mode,
                 installMessage = installMessage,
                 retentionDecisionNeeded = retentionDecisionNeeded,
-                onInstall = {
-                    scope.launch {
-                        installing = true
-                        installMessage = "Preparando la sesión de instalación…"
-                        try {
-                            when (val result = router.install(prepared.verified)) {
-                                InstallRequestResult.Finished -> {
-                                    activeSessionId = -1
-                                    handleInstallationEvent(InstallationEvent.Success(-1, prepared.verified.packageName))
-                                }
-                                is InstallRequestResult.Legacy -> {
-                                    activeSessionId = -1
-                                    legacyInstaller.launch(result.intent)
-                                }
-                                is InstallRequestResult.Committed -> {
-                                    activeSessionId = result.sessionId
-                                    installMessage = "Sesión enviada a Android."
-                                    InstallationEvents.latest(result.sessionId)
-                                        ?.let { handleInstallationEvent(it) }
-                                }
-                                is InstallRequestResult.PermissionRequired -> {
-                                    installing = false
-                                    installMessage = "Autoriza a FrankUpdater para instalar paquetes."
-                                    permissionSettings.launch(result.settingsIntent)
-                                }
-                            }
-                        } catch (cancellation: CancellationException) {
-                            throw cancellation
-                        } catch (error: Exception) {
-                            installing = false
-                            installMessage = "No se pudo crear la sesión: ${error.message}"
-                        }
-                    }
-                },
+                onInstall = { startInstall(prepared) },
                 onRetain = {
                     scope.launch {
                         runCatching { withContext(Dispatchers.IO) { library.retain(prepared) } }
@@ -325,6 +337,8 @@ internal fun LibraryRoute(
                                     selectedRetained = true
                                     retentionDecisionNeeded = false
                                     installMessage = null
+                                    // One step from the retained card (F-35): install right after re-verifying.
+                                    selected?.let { startInstall(it) }
                                 } catch (error: Exception) {
                                     errorMessage = error.message
                                 } finally {
@@ -382,8 +396,7 @@ private fun VerifiedImportCard(
                 modifier = Modifier.padding(top = 4.dp),
             )
             Text(
-                "SHA-256 ${packageArchive.sourceSha256.take(16)}… · " +
-                    packageArchive.installAction.name,
+                "SHA-256 ${packageArchive.sourceSha256.take(16)}…",
                 style = MaterialTheme.typography.bodySmall,
             )
             if (packageArchive.expansionFiles.isNotEmpty()) {
