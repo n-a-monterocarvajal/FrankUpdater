@@ -82,14 +82,15 @@ internal class PlayProvider private constructor(
         fun parseAnonymousResponse(bytes: ByteArray): Pair<String, String> {
             require(bytes.size <= 64 * 1024) { "Respuesta de acceso anónimo demasiado grande." }
             val json = JsonParser.parseString(bytes.toString(Charsets.UTF_8)).asJsonObject
-            fun field(name: String): String {
-                val value = requireNotNull(json[name]) { "Respuesta de acceso anónimo incompleta." }
+            // Servers answer with either name for the session token; other fields of the reply are ignored.
+            fun field(vararg names: String): String {
+                val value = requireNotNull(names.firstNotNullOfOrNull { json[it] }) { "Respuesta de acceso anónimo incompleta." }
                 require(value.isJsonPrimitive && value.asJsonPrimitive.isString)
                 return value.asString.also { text ->
                     require(text.isNotBlank() && text.none(Char::isISOControl)) { "Respuesta de acceso anónimo inválida." }
                 }
             }
-            return field("email") to field("auth")
+            return field("email") to field("authToken", "auth")
         }
 
         fun validateDelivery(files: List<PlayFile>) {

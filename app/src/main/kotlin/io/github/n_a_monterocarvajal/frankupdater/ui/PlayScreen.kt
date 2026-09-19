@@ -90,6 +90,7 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
             catch (cancelled: CancellationException) { throw cancelled }
             catch (expired: DeliveryExpiredException) { message = expired.message.orEmpty() }
             catch (error: Exception) {
+                android.util.Log.w("FrankUpdater", "Play operation failed", error)
                 // Only our own status messages and the lack of network are shown: other errors may carry signed URLs.
                 val reason = when {
                     error is java.net.UnknownHostException -> " (sin conexión)"
