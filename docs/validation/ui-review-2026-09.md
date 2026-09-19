@@ -135,6 +135,7 @@ Instalación con el permiso "Instalar apps desconocidas" concedido:
 
 | F-36 (completo) | Las descargas directas corren en `PackageDownloadWorker` (WorkManager en primer plano, `dataSync`), con notificación de progreso y *Cancelar*; Buscar refleja su progreso y resultado. La web asistida sigue en proceso porque sus cookies no deben guardarse en la base de WorkManager. | Emulador: con la app en segundo plano (pantalla de inicio), el worker descargó y verificó Fossify 1.2.0 y lo rechazó correctamente por *Downgrade* frente a la 1.4.0 instalada. |
 | Actualización automática | Opción por app en los resultados. La comprobación periódica encola descarga e instalación solo para versiones con la firma confirmada. La sesión usa `USER_ACTION_NOT_REQUIRED` (Android 12+, permiso `UPDATE_PACKAGES_WITHOUT_USER_ACTION`): Android no pregunta cuando FrankUpdater es el instalador registrado. Si aún pide confirmación, el receptor muestra una notificación en lugar de abrir una actividad desde segundo plano. La retención sigue la política (*Conservar siempre* guarda; el resto no deja archivo). | Emulador: Obtainium reinstalada 1.6.14 con FrankUpdater como instalador; con la opción activa, la comprobación encontró 1.6.17 en F-Droid (firma leída del APK remoto) y la instaló sin ningún diálogo en unos 90 s (23533 → 23563). |
+| F-35 (pendiente de validar tras instalar) | La acción de la tarjeta "Paquete verificado" se calcula con la versión instalada en el momento (misma lógica que F-30), no con la acción fijada al importar; tras un resultado de instalación la tarjeta se recompone y pasa a "Reinstalar". | API 36: con Aurora 4.8.1 instalada, la tarjeta de 4.8.4 dice "Actualizar". La transición tras instalar no se pudo comprobar: el permiso "Instalar apps desconocidas" se perdió al reinstalar la app en `emulator-5554` y concederlo corresponde al usuario. |
 | F-24 | La comprobación ignora el paquete de FrankUpdater y "Seleccionar N" no lo incluye (el contador lo descuenta). | API 36: "Seleccionar 6" con 7 visibles; la comprobación de esas 6 no genera fila para `io.github.n_a_monterocarvajal.frankupdater`. |
 | F-22 | Cada fila del Inventario muestra el icono de la app (36 dp), cargado fuera del hilo principal y solo para las filas que la cuadrícula compone. La selección de overlays queda mitigada por el filtro "Usuario" por defecto (F-20). | API 36: iconos de las 7 apps de usuario. API 23: iconos de sistema en 360 dp. `InventoryScreenTest` correcto en API 23. |
 | F-43 | Cada app del Inventario es un elemento compacto: casilla al inicio, nombre como título, "versión · paquete" en una línea de apoyo e insignias solo cuando informan (Sistema, Deshabilitada, splits). Toda la fila marca o desmarca (`toggleable`, rol de casilla). | API 36: caben las 7 apps de usuario (antes unas 3,5). API 23: 4 elementos legibles en 360 dp. Tocar "Droid-ify" pasa a "1 seleccionadas" y "Comprobar (1)". `InventoryScreenTest` correcto en API 23. |
@@ -180,7 +181,7 @@ Hallazgos abiertos:
 
 - **P1:** ninguno.
 - **P2:** ninguno automatizable. De F-39 queda lo que depende de D-02 (componentes y movimiento expresivos).
-- **P3:** F-27, F-28, F-33, F-35, F-44.
+- **P3:** F-28, F-33, F-44.
 - **Condicional:** F-06, pasar las filas de Buscar a elementos de la `LazyColumn` si en un dispositivo real sigue habiendo tirones.
 
 Otros pendientes:
@@ -192,6 +193,9 @@ Otros pendientes:
 - Probar la confirmación de instalación por notificación, con el permiso de notificaciones concedido.
 
 Requieren a una persona:
+
+- Volver a conceder "Instalar apps desconocidas" a FrankUpdater en `emulator-5554` (se perdió al reinstalar la app en un test instrumentado) y comprobar después F-35: tras actualizar desde Biblioteca, la tarjeta debe pasar a "Reinstalar".
+- F-27 (explicar el permiso de instalación y reanudar al volver): probarlo exige revocar y conceder ese permiso, que es un ajuste de seguridad.
 
 - Validar en un teléfono Samsung las apps de Good Guardians desde APKMirror y la primera actualización con Galaxy Store como instalador registrado.
 - Google Play queda aparcado: requiere cuenta o dispenser.

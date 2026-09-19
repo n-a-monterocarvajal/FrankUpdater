@@ -407,14 +407,16 @@ private fun VerifiedImportCard(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(top = 12.dp),
             ) {
-                Button(onClick = onInstall, enabled = !installing && !legacyUnsupported) {
-                    Text(
-                        when (packageArchive.installAction) {
-                            InstallAction.Install -> "Instalar"
-                            InstallAction.Update -> "Actualizar"
-                            InstallAction.Reinstall -> "Reinstalar"
-                        },
-                    )
+                // Read at composition time (it recomposes on install results), not the action computed at import.
+                val installed = AndroidInstalledAppRepository(LocalContext.current).versionCode(packageArchive.packageName)
+                Button(onClick = onInstall, enabled = !installing && !legacyUnsupported &&
+                    (installed == null || packageArchive.versionCode >= installed)) {
+                    Text(when {
+                        installed == null -> "Instalar"
+                        packageArchive.versionCode > installed -> "Actualizar"
+                        packageArchive.versionCode == installed -> "Reinstalar"
+                        else -> "Anterior a la instalada"
+                    })
                 }
                 Button(onClick = onRetain, enabled = !retained && !installing) {
                     Text(if (retained) "Conservado" else "Conservar")
