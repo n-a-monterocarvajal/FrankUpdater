@@ -36,6 +36,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -316,10 +318,17 @@ private fun InstalledAppCard(
     onSelectedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Compact list item: the whole row toggles selection; badges only when they add information.
     Card(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(selected, onCheckedChange = onSelectedChange, enabled = selectionEnabled)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(value = selected, enabled = selectionEnabled, role = Role.Checkbox, onValueChange = onSelectedChange)
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(selected, onCheckedChange = null, enabled = selectionEnabled)
+            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
                 Text(
                     text = app.displayName,
                     style = MaterialTheme.typography.titleMedium,
@@ -327,29 +336,20 @@ private fun InstalledAppCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
-            Text(
-                text = app.packageName,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-            Text(
-                text = "${app.versionName ?: "Sin versión"} · código ${app.versionCode}",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 10.dp),
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(top = 10.dp),
-            ) {
-                StatusLabel(if (app.isSystemApp) "Sistema" else "Usuario")
-                if (!app.isEnabled) {
-                    StatusLabel("Deshabilitada")
-                }
-                if (app.splitSourceDirs.isNotEmpty()) {
-                    StatusLabel("${app.splitSourceDirs.size} splits")
+                Text(
+                    text = "${app.versionName ?: "Sin versión"} · ${app.packageName}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (app.isSystemApp || !app.isEnabled || app.splitSourceDirs.isNotEmpty()) Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(top = 4.dp),
+                ) {
+                    if (app.isSystemApp) StatusLabel("Sistema")
+                    if (!app.isEnabled) StatusLabel("Deshabilitada")
+                    if (app.splitSourceDirs.isNotEmpty()) StatusLabel("${app.splitSourceDirs.size} splits")
                 }
             }
         }
@@ -366,7 +366,7 @@ private fun StatusLabel(text: String) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
         )
     }
 }
