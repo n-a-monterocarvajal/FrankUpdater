@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -201,6 +202,11 @@ private fun DestinationContent(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
             )
         }
+        // Wide layouts (F-46): content keeps a readable width, centered, instead of stretching across the screen.
+        androidx.compose.foundation.layout.Box(
+            Modifier.weight(1f).fillMaxWidth()
+                .wrapContentWidth(androidx.compose.ui.Alignment.CenterHorizontally).widthIn(max = 840.dp),
+        ) {
         when (destination) {
             NavigationDestination.Updates -> UpdatesRoute(
                 installedAppRepository,
@@ -220,6 +226,7 @@ private fun DestinationContent(
                 Modifier.fillMaxSize(),
             )
             NavigationDestination.Search -> PlayRoute(packagePipeline, packageLibrary, requestedPackage, onPackageConsumed)
+        }
         }
     }
 }

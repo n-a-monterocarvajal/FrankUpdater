@@ -249,10 +249,10 @@ private fun InventoryContent(
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
                 TextButton(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f, fill = false),
                     enabled = visibleApps.isNotEmpty() && selectedPackages.size < 50,
                     onClick = {
                         onSelectedPackagesChange(selectedPackages + visibleApps
