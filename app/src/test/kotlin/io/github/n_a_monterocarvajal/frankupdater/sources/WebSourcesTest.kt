@@ -221,6 +221,19 @@ class WebSourcesTest {
         assertEquals(null, MirrorParser.appPackage("<p>Not on Play</p>", apps.single().url))
     }
 
+    @Test fun `APKPure name search yields packages and unrelated padding is filtered out`() {
+        // Shape of v3/search_query_new: matches first, then a bar of popular apps unrelated to the query.
+        val json = """{"data":{"data":[
+            {"data":[{"app_info":{"title":"Zoom Workplace","package_name":"us.zoom.videomeetings","developer":"zoom.com"}}]},
+            {"data":[{"app_info":{"title":"Roblox","package_name":"com.roblox.client","developer":"Roblox Corporation"}},
+                     {"app_info":{"title":"Toca Boca World","package_name":"com.tocaboca.tocalifeworld"}}]},
+            {"data":[{"ad":true,"app_info":{"title":"Zoom Ad","package_name":"com.example.ad"}}]},
+            {"data":[{"app_info":{"title":"Zoom Bad","package_name":"not a package"}}]}]}}"""
+        val apps = PureParser.searchApps(json)
+        assertEquals(listOf("us.zoom.videomeetings", "com.roblox.client"), apps.map { it.packageName })
+        assertEquals(listOf("Zoom Workplace"), apps.filter { matchesQuery(it.name, "zoom workplace") }.map { it.name })
+    }
+
     private fun fixture(name: String) = requireNotNull(javaClass.getResource("/sources/$name")).readText()
     private fun reply(request: Request, code: Int, body: String = "") = Response.Builder().request(request)
         .protocol(Protocol.HTTP_1_1).code(code).message("fixture").body(body.toResponseBody()).build()

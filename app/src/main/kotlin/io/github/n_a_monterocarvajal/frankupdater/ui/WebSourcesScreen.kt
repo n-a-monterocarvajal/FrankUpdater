@@ -64,7 +64,7 @@ private object WebSearch {
     val variantDetails = mutableStateOf<Map<String, MirrorVariantDetails>>(emptyMap())
     val installedSigners = mutableStateOf<Set<String>>(emptySet())
     val installedVersion = mutableStateOf<Long?>(null)
-    val mirrorApps = mutableStateOf<List<MirrorApp>>(emptyList())
+    val nameMatches = mutableStateOf<List<NameMatch>>(emptyList())
 }
 
 @Composable
@@ -97,7 +97,7 @@ internal fun WebSourcesCard(
     var variantDetails by WebSearch.variantDetails
     var installedSigners by WebSearch.installedSigners
     var installedVersion by WebSearch.installedVersion
-    var mirrorApps by WebSearch.mirrorApps
+    var nameMatches by WebSearch.nameMatches
     LaunchedEffect(variants, variantDetails, packageName) {
         if (variants.isNotEmpty()) onEntries(variants.mapNotNull { it.catalogEntry(packageName, variantDetails[it.url]) })
     }
@@ -256,7 +256,7 @@ internal fun WebSourcesCard(
             Text("Consultar fuentes", style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(packageName, {
                 packageName = it.take(255); releases = emptyList(); variants = emptyList(); choice = null; failedSources = emptySet()
-                mirrorApps = emptyList()
+                nameMatches = emptyList()
             }, label = { Text("Nombre de app o paquete") }, singleLine = true, enabled = !busy,
                 keyboardOptions = literalKeyboard(KeyboardType.Ascii),
                 modifier = Modifier.fillMaxWidth())
@@ -275,25 +275,25 @@ internal fun WebSourcesCard(
                 matches.forEach { (name, id) ->
                     TextButton(enabled = !busy && device != null, onClick = { packageName = id; consultPure() }) { Text(if (name == id) id else "$name · $id") }
                 }
-                // Apps that are not installed (D-01): find them by name on APKMirror, then query all sources by package.
+                // Apps that are not installed (D-01): find them by name on APKPure and APKMirror, then query all sources.
                 OutlinedButton(enabled = !busy && device != null, onClick = {
-                    act(Source.ApkMirror) {
-                        mirrorApps = runInterruptible(Dispatchers.IO) { searchMirrorApps(client, query) }
-                        if (mirrorApps.isEmpty()) message = "APKMirror no tiene apps con ese nombre. Prueba otro nombre o el paquete."
+                    act(Source.ApkPure) {
+                        nameMatches = runInterruptible(Dispatchers.IO) { searchAppsByName(client, query, requireNotNull(device).sdk) }
+                        if (nameMatches.isEmpty()) message = "APKPure y APKMirror no tienen apps con ese nombre. Prueba otro nombre o el paquete."
                     }
-                }) { Text("Buscar \"$query\" en APKMirror") }
-                if (mirrorApps.isNotEmpty()) Text("En APKMirror", style = MaterialTheme.typography.labelLarge)
-                mirrorApps.forEach { app ->
+                }) { Text("Buscar \"$query\" en la web") }
+                if (nameMatches.isNotEmpty()) Text("En la web", style = MaterialTheme.typography.labelLarge)
+                nameMatches.forEach { app ->
                     TextButton(enabled = !busy && device != null, onClick = {
-                        act(Source.ApkMirror) {
-                            val id = runInterruptible(Dispatchers.IO) { mirrorAppPackage(client, app.url) }
+                        act(if (app.packageName != null) Source.ApkPure else Source.ApkMirror) {
+                            val id = app.packageName ?: runInterruptible(Dispatchers.IO) { mirrorAppPackage(client, requireNotNull(app.mirrorUrl)) }
                                 ?: throw java.io.IOException("APKMirror no indica el paquete de ${app.name}")
-                            MirrorAppStore(context).remember(id, app.url)
-                            mirrorApps = emptyList()
+                            app.mirrorUrl?.let { MirrorAppStore(context).remember(id, it) }
+                            nameMatches = emptyList()
                             packageName = id
                             lookup()
                         }
-                    }) { Text(listOfNotNull(app.name, app.developer).joinToString(" · ")) }
+                    }) { Text(listOfNotNull(app.name, app.developer, app.packageName).joinToString(" · ")) }
                 }
             }
             Button(enabled = !busy && device != null && isPackage, onClick = ::consultPure) {

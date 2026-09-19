@@ -20,7 +20,15 @@ internal class PlayHttpClient(
         .connectTimeout(25, TimeUnit.SECONDS).readTimeout(25, TimeUnit.SECONDS)
         .callTimeout(45, TimeUnit.SECONDS)
         .followRedirects(false).followSslRedirects(false).build(),
+    /** Sent only with anonymous-server requests (postAuth, getAuth), for servers that require a given client identity. */
+    private val authUserAgent: String? = null,
 ) : IHttpClient {
+    init {
+        require(authUserAgent == null || (authUserAgent.length in 1..256 && authUserAgent.all { it in ' '..'~' })) {
+            "El User-Agent solo admite texto ASCII visible, hasta 256 caracteres."
+        }
+    }
+
     override val responseCode = MutableStateFlow(0)
 
     override fun get(url: String, headers: Map<String, String>): PlayResponse =
@@ -38,10 +46,11 @@ internal class PlayHttpClient(
     override fun post(url: String, headers: Map<String, String>, params: Map<String, String>) =
         post(withParams(url, params), headers, byteArrayOf())
 
-    override fun getAuth(url: String) = get(url, emptyMap())
+    override fun getAuth(url: String) = get(url, authUserAgent?.let { mapOf("User-Agent" to it) }.orEmpty())
 
     override fun postAuth(url: String, body: ByteArray): PlayResponse = execute(
-        request(url, emptyMap()).post(body.toRequestBody("application/json".toMediaType())).build(),
+        request(url, authUserAgent?.let { mapOf("User-Agent" to it) }.orEmpty())
+            .post(body.toRequestBody("application/json".toMediaType())).build(),
     )
 
     private fun request(url: String, headers: Map<String, String>) = Request.Builder()

@@ -38,6 +38,7 @@ import io.github.n_a_monterocarvajal.frankupdater.model.GenericDeviceProfile
 import io.github.n_a_monterocarvajal.frankupdater.play.playCatalogEntry
 import io.github.n_a_monterocarvajal.frankupdater.play.DeliveryExpiredException
 import io.github.n_a_monterocarvajal.frankupdater.play.PlayDownload
+import io.github.n_a_monterocarvajal.frankupdater.play.PlayHttpClient
 import io.github.n_a_monterocarvajal.frankupdater.play.PlayProvider
 import io.github.n_a_monterocarvajal.frankupdater.play.PlayCredentialStore
 import io.github.n_a_monterocarvajal.frankupdater.play.PlayCredentials
@@ -67,6 +68,7 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
     var email by remember { mutableStateOf(savedPersonal?.email.orEmpty()) }
     var aasToken by remember { mutableStateOf(savedPersonal?.aasToken.orEmpty()) }
     var endpoint by rememberSaveable { mutableStateOf(preferences.getString("anonymous_server", "").orEmpty()) }
+    var serverUserAgent by rememberSaveable { mutableStateOf(preferences.getString("anonymous_user_agent", "").orEmpty()) }
     var query by rememberSaveable { mutableStateOf("") }
     var version by rememberSaveable { mutableStateOf("") }
     var provider by remember { mutableStateOf<PlayProvider?>(null) }
@@ -87,8 +89,14 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
             try { action() }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (expired: DeliveryExpiredException) { message = expired.message.orEmpty() }
-            catch (_: Exception) {
-                message = "No se pudo completar la operación. Comprueba el servidor y la conexión. " +
+            catch (error: Exception) {
+                // Only our own status messages and the lack of network are shown: other errors may carry signed URLs.
+                val reason = when {
+                    error is java.net.UnknownHostException -> " (sin conexión)"
+                    error.message?.startsWith("El servicio respondió HTTP") == true -> " (${error.message?.removeSuffix(".")})"
+                    else -> ""
+                }
+                message = "No se pudo completar la operación$reason. Comprueba el servidor y la conexión. " +
                     "Si descargabas una versión, puede no estar disponible o no superar la verificación."
             } finally { busy = false }
         }
@@ -152,11 +160,18 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                     OutlinedTextField(endpoint, { endpoint = it }, label = { Text("Dirección HTTPS del servidor") },
                         keyboardOptions = literalKeyboard(androidx.compose.ui.text.input.KeyboardType.Uri),
                         singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(serverUserAgent, { serverUserAgent = it.take(256) },
+                        label = { Text("User-Agent (opcional)") },
+                        supportingText = { Text("Solo si el servidor exige uno concreto.") },
+                        keyboardOptions = literalKeyboard(androidx.compose.ui.text.input.KeyboardType.Ascii),
+                        singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
                     Button(enabled = !busy && endpoint.isNotBlank(), onClick = {
                         act {
                             val properties = runInterruptible(Dispatchers.IO) { playDeviceProperties(context) }
-                            provider = PlayProvider.anonymous(endpoint, properties, Locale.getDefault())
-                            preferences.edit().putString("anonymous_server", endpoint.trim()).apply()
+                            provider = PlayProvider.anonymous(endpoint, properties, Locale.getDefault(),
+                                PlayHttpClient(authUserAgent = serverUserAgent.trim().ifEmpty { null }))
+                            preferences.edit().putString("anonymous_server", endpoint.trim())
+                                .putString("anonymous_user_agent", serverUserAgent.trim()).apply()
                             message = "Acceso anónimo conectado."
                         }
                     }) { Text("Conectar") }

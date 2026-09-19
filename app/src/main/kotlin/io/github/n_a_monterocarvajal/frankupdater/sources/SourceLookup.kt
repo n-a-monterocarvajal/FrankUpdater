@@ -107,6 +107,27 @@ internal fun searchMirrorApps(client: WebSourceClient, query: String): List<Mirr
 }
 
 /**
+ * Name search for apps that are not installed (D-01): APKPure (which gives the package) and APKMirror (app pages),
+ * keeping only names that share a word with [query]. APKMirror entries named like an APKPure one are dropped.
+ * Blocking; a source that fails is skipped unless both fail.
+ */
+internal fun searchAppsByName(client: WebSourceClient, query: String, deviceSdk: Int): List<NameMatch> {
+    require(query.isNotBlank() && query.length <= 100)
+    val key = java.net.URLEncoder.encode(query.trim(), "UTF-8")
+    val pure = runCatching {
+        PureParser.searchApps(client.text("https://tapi.pureapk.com/v3/search_query_new?key=$key&hl=en", Source.ApkPure,
+            mapOf("Ual-Access-Businessid" to "projecta", "Ual-Access-ProjectA" to "{\"device_info\":{\"os_ver\":\"$deviceSdk\"}}")))
+    }
+    val mirror = runCatching { searchMirrorApps(client, query) }
+    if (pure.isFailure && mirror.isFailure) throw pure.exceptionOrNull()!!
+    val pureApps = pure.getOrDefault(emptyList()).filter { matchesQuery(it.name, query) }
+    val names = pureApps.map { it.name.lowercase() }.toSet()
+    val mirrorApps = mirror.getOrDefault(emptyList()).filter { matchesQuery(it.name, query) && it.name.lowercase() !in names }
+        .map { NameMatch(it.name, it.developer, null, it.url) }
+    return (pureApps + mirrorApps).take(12)
+}
+
+/**
  * Package of an APKMirror app page: its Play Store link, or else the package declared by the newest release's
  * first variant (apps that are not on Play). Blocking; one to three paced requests.
  */

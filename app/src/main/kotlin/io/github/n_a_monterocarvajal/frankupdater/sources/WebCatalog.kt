@@ -14,6 +14,16 @@ internal data class WebRelease(val name: String, val url: String)
 
 /** One app from APKMirror's app search: its name, developer and app page. */
 internal data class MirrorApp(val name: String, val developer: String?, val url: String)
+
+/** An app found by name: APKPure gives its package; APKMirror only its app page, read when the app is picked. */
+internal data class NameMatch(val name: String, val developer: String?, val packageName: String?, val mirrorUrl: String?)
+
+/** Whether [name] shares a word with [query]: search pages pad their results with unrelated popular apps. */
+internal fun matchesQuery(name: String, query: String): Boolean {
+    val words = query.lowercase().split(Regex("\\W+")).filter { it.length >= 2 }
+    val lower = name.lowercase()
+    return words.isEmpty() || words.any { lower.contains(it) }
+}
 internal data class MirrorVariant(
     val name: String, val architecture: String, val minimumAndroid: String,
     val density: String, val url: String, val type: PackageType, val versionCode: Long?,
@@ -187,6 +197,26 @@ private fun androidSdkFromLabel(label: String): Int? {
 
 /** Obtainium's version_list and asset contract, retaining every numeric version and ABI variant. */
 internal object PureParser {
+    /**
+     * Apps from `v3/search_query_new`: the first non-ad app of each result section, as APKUpdater's
+     * ApkPureRepository.search does (69b6fcd, GPL-3.0). Callers still filter by name ([matchesQuery]), since a
+     * section of popular apps unrelated to the query also leads with one.
+     */
+    fun searchApps(json: String): List<NameMatch> {
+        require(json.length <= 8 * 1024 * 1024)
+        val sections = JsonParser.parseString(json).asJsonObject.getAsJsonObject("data")?.getAsJsonArray("data")
+            ?: return emptyList()
+        return sections.mapNotNull { section ->
+            val first = section.asJsonObject.getAsJsonArray("data")?.firstOrNull()?.asJsonObject ?: return@mapNotNull null
+            if (first.get("ad")?.asBoolean == true) return@mapNotNull null
+            val info = first.getAsJsonObject("app_info") ?: return@mapNotNull null
+            val id = info.get("package_name")?.asString ?: return@mapNotNull null
+            val name = (info.get("title") ?: info.get("label"))?.asString ?: return@mapNotNull null
+            if (runCatching { requirePackageName(id) }.isFailure) return@mapNotNull null
+            NameMatch(name.trim(), info.get("developer")?.asString, id, null)
+        }.distinctBy { it.packageName }
+    }
+
     fun history(json: String, packageName: String): List<CatalogEntry> {
         requirePackageName(packageName)
         require(json.length <= 8 * 1024 * 1024)
