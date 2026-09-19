@@ -237,3 +237,29 @@ Todos los textos de la interfaz están en el código Kotlin (varios cientos). Op
 3. **Posponerlo** hasta que haya un segundo idioma.
 
 Recomendación: 2. Evita conflictos y reparte el coste.
+
+## Resumen de la sesión desatendida (19 de septiembre, 00:41–08:45)
+
+Rama `codex/version-catalog`. Emuladores: `emulator-5554` (API 36), `emulator-5556` (API 23) y, al final, `Frank_API36_Tablet`. `scripts/verify.ps1` correcto tras cada cambio de código.
+
+**Pendientes cerrados (15):**
+
+- P1: F-09 (no reproducible: artefacto de medición), F-45 (TLS en Android ≤ 7.1: ISRG Root X1).
+- P2: F-15 (buscar apps instaladas por nombre), F-17 (progreso de la comprobación y recarga automática), F-19/F-25 (una sola selección), F-20 (Inventario abre en "Usuario"), F-21 (cabecera desplazable y acciones fijas), F-30 (acción según la versión instalada), F-40 (lista de versiones en tarjetas), F-41 (esquema de marca y color dinámico, parte estable), F-42 (iconos Material, etiquetas completas, barra superior más baja), F-43 (Inventario compacto).
+- P3: F-22 (iconos de apps), F-24 (FrankUpdater fuera de su propia comprobación), F-35 (implementado; falta validar tras instalar).
+- Mantenimiento: `UPSTREAMS.yml` con la revisión de septiembre; recorrido de referencia en API 23.
+
+**Hallazgos nuevos:** F-41 a F-44 (división de F-39 por pantalla), F-45 (P1, cerrado) y F-46 (P3, diseño ancho en tableta, solo registrado).
+
+**Decisiones pendientes:** D-01 (búsqueda por nombre en fuentes web), D-02 (Material 3 Expressive requiere la alfa 1.5) y D-03 (migración a `strings.xml`).
+
+**Bloqueos y lo que requiere a una persona:**
+
+- El permiso "Instalar apps desconocidas" se perdió en `emulator-5554` al reinstalar la app en un test instrumentado. Hay que concederlo de nuevo para validar F-35 y para probar F-27.
+- F-33 (feedback de la web asistida): el progreso ya se muestra por el cambio de F-02, pero no se pudo recorrer el flujo en el emulador porque estaba saturado.
+- Recorrido completo en tableta: repetir con solo ese emulador abierto.
+- Validación en un teléfono Samsung (Good Guardians) y publicación de la rama.
+
+**Lecciones de proceso:** los tests instrumentados desinstalan la app y borran sus datos, así que se ejecutan solo en API 23. Con tres emuladores abiertos, el sistema de los emuladores entra en "isn't responding".
+
+**Commits (19):** `0d1723e`, `bb3c2aa`, `3eb74f0`, `5ba4d17`, `e9a902e`, `b9cc2ba`, `05fb40e`, `54aa65b`, `177c162`, `f44589c`, `1342973`, `4bcaeb7`, `64e135b`, `c953d47`, `668ff6d`, `943168b`, `866f91b`, `4d9b85a`, `8d5f66f` (más el de este resumen).
