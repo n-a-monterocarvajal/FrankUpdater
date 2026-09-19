@@ -187,7 +187,7 @@ Hallazgos abiertos:
 Otros pendientes:
 
 - Revisar la jerarquía lógica y visual del resto de pantallas con el mismo criterio que F-40: dato principal frente a secundario, agrupación y acción principal destacada.
-- Actualizar `last_reviewed_commit` en `UPSTREAMS.yml` para Obtainium (`af286fa`), App Manager (`a6f6628`), Aurora Store (`660670a`) y apksig-android (`c120428`), según `docs/upstreams/review-2026-09.md`.
+- ~~Actualizar `last_reviewed_commit` en `UPSTREAMS.yml`~~ **hecho**: Obtainium (`af286fa`), App Manager (`a6f6628`), Aurora Store (`660670a`, perfil de dispositivo e instalador) y apksig-android (`c120428`); `last_integrated_commit` sin cambios. El vigilante lee el manifiesto (tests de Node correctos y lectura sin red).
 - Recorrido de referencia en `Frank_API23_Phone` (API 23, 1080×1920, 480 dpi, fuente grande): **hecho**. Las cinco pantallas (Inventario, resultados, Buscar, Biblioteca, Ajustes) se muestran sin errores ni crashes; tras la navegación, `gfxinfo` marca un 55 % de frames lentos (el emulador usa GPU por software, así que sirve solo como comparación relativa antes y después de F-39). La barra superior y los bloques de texto ocupan gran parte de la altura útil (360 dp de ancho).
 - Recorrer los flujos en `Frank_API36_Tablet`.
 - Probar la confirmación de instalación por notificación, con el permiso de notificaciones concedido.

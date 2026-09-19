@@ -59,8 +59,8 @@ components:
     license: GPL-2.0-or-later
     symbols:
       - NativeDeviceInfoProvider
-    last_seen_commit: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
-    last_reviewed_commit: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
+    last_seen_commit: 660670a35cd6980afaf1f9667b7df2144ddc435c
+    last_reviewed_commit: 660670a35cd6980afaf1f9667b7df2144ddc435c
     last_integrated_commit: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
 
   compatibility.base:
@@ -142,8 +142,8 @@ components:
     integration: adapted
     license: GPL-3.0-only
     symbols: [APKPure.getLatestAPKDetails, APKPure.getDetailsForVersion, APKPure.getRequestHeaders]
-    last_seen_commit: aec5dabb3f7b9aa8212f7d228344a4e722d23e89
-    last_reviewed_commit: aec5dabb3f7b9aa8212f7d228344a4e722d23e89
+    last_seen_commit: af286fa8d31d7406d6db167e2314d376d74f7696
+    last_reviewed_commit: af286fa8d31d7406d6db167e2314d376d74f7696
     last_integrated_commit: aec5dabb3f7b9aa8212f7d228344a4e722d23e89
 
   archive.reader:
@@ -154,8 +154,8 @@ components:
     symbols:
       - ApkFile
       - SplitApkChooser
-    last_seen_commit: fc1e70074e8cf75c0619e526e688c16ad2e1e862
-    last_reviewed_commit: fc1e70074e8cf75c0619e526e688c16ad2e1e862
+    last_seen_commit: a6f6628b8abb2f6876e6d4439d55f868d941ab9b
+    last_reviewed_commit: a6f6628b8abb2f6876e6d4439d55f868d941ab9b
     last_integrated_commit: fc1e70074e8cf75c0619e526e688c16ad2e1e862
 
   archive.apkm-legacy:
@@ -175,8 +175,8 @@ components:
     integration: dependency
     license: Apache-2.0
     symbols: []
-    last_seen_commit: 1bd3a0c000c56e752b41d6f65c3a3d3d8ad7f049
-    last_reviewed_commit: 1bd3a0c000c56e752b41d6f65c3a3d3d8ad7f049
+    last_seen_commit: c120428b7b07f2a2b638c7519c2d60680d6398ce
+    last_reviewed_commit: c120428b7b07f2a2b638c7519c2d60680d6398ce
     last_integrated_commit: 1bd3a0c000c56e752b41d6f65c3a3d3d8ad7f049
 
   installer.router:
@@ -201,6 +201,6 @@ components:
     license: GPL-2.0-or-later
     symbols:
       - SessionInstaller
-    last_seen_commit: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
-    last_reviewed_commit: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
+    last_seen_commit: 660670a35cd6980afaf1f9667b7df2144ddc435c
+    last_reviewed_commit: 660670a35cd6980afaf1f9667b7df2144ddc435c
     last_integrated_commit: f1bb85ff9dcbcc5cae07779d4e13f77b6b7f245b
