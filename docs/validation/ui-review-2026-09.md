@@ -181,8 +181,8 @@ Cola de trabajo. Cada hallazgo abierto de la tabla anterior es un pendiente; aqu
 Hallazgos abiertos:
 
 - **P1:** ninguno.
-- **P2:** ninguno automatizable. De F-39 queda lo que depende de D-02 (componentes y movimiento expresivos).
-- **P3:** F-28 (decisión D-03), F-33 (cubierto por F-02; falta probar el flujo de web asistida en el emulador), F-44, F-46.
+- **P2:** ninguno automatizable. De F-39 queda la parte expresiva (componentes y movimiento), a la espera de Material 3 1.5 estable (D-02).
+- **P3:** F-28 (pantalla por pantalla, D-03), F-33 (cubierto por F-02; falta probar el flujo de web asistida en el emulador), F-44, F-46.
 - **Condicional:** F-06, pasar las filas de Buscar a elementos de la `LazyColumn` si en un dispositivo real sigue habiendo tirones.
 
 Otros pendientes:
@@ -218,6 +218,8 @@ Hoy Buscar encuentra por nombre solo las apps instaladas; en la web necesita el 
 
 Recomendación: 3 por ahora. Si hace falta instalar apps nuevas, empezar por 1 limitada a 5 resultados.
 
+**Decidido (19 de septiembre): opción 3.** Buscar sigue encontrando por nombre solo las apps instaladas.
+
 ### D-02 · Material 3 Expressive requiere una versión alfa (de F-39/F-41)
 
 En Material 3 1.4.0, el que fija el BOM `2026.08.00`, `MaterialExpressiveTheme`, `MotionScheme` y los componentes expresivos (botones con forma variable, barras de herramientas flotantes, indicadores de carga) son internos. Solo son públicos en la línea 1.5.x, hoy en alfa. Opciones:
@@ -228,6 +230,8 @@ En Material 3 1.4.0, el que fija el BOM `2026.08.00`, `MaterialExpressiveTheme`,
 
 Recomendación: 2. Coincide con la vocación de la app (estabilidad en dispositivos antiguos) y no bloquea F-42, F-43 ni F-40.
 
+**Decidido (19 de septiembre): opción 2.** Se sigue con Material 3 estable; la parte expresiva de F-39 espera a la 1.5 estable.
+
 ### D-03 · Textos a `strings.xml` (de F-28)
 
 Todos los textos de la interfaz están en el código Kotlin (varios cientos). Opciones:
@@ -237,6 +241,8 @@ Todos los textos de la interfaz están en el código Kotlin (varios cientos). Op
 3. **Posponerlo** hasta que haya un segundo idioma.
 
 Recomendación: 2. Evita conflictos y reparte el coste.
+
+**Decidido (19 de septiembre): opción 2.** Cada pantalla que se rehaga pasa sus textos a `strings.xml`; las nuevas nacen con recursos.
 
 ## Resumen de la sesión desatendida (19 de septiembre, 00:41–08:45)
 
