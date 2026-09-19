@@ -105,18 +105,20 @@ internal fun UpdatesRoute(onOpenPackage: (String) -> Unit, onChooseApps: () -> U
                     Text(if (total > 0) "Comprobando ${done + 1} de $total…" else "Comprobando…",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                 } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Nothing chosen yet: choosing apps is the only useful action.
+                    if (preferences.packages.isEmpty()) Button(onClick = onChooseApps) { Text("Elegir apps") }
+                    else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (pending.size > 1) Button(onClick = { pending.forEach(::update) }) { Text("Actualizar todas (${pending.size})") }
                         // "Comprobar ahora" is the main action unless there are several updates waiting.
-                        if (pending.size > 1) OutlinedButton(enabled = preferences.packages.isNotEmpty(), onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
-                        else Button(enabled = preferences.packages.isNotEmpty(), onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
+                        if (pending.size > 1) OutlinedButton(onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
+                        else Button(onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
                     }
                 }
                 if (preferences.packages.isEmpty()) {
                     Text("Todavía no hay apps elegidas para comprobar.", color = MaterialTheme.colorScheme.tertiary)
                 }
-                TextButton(onClick = onChooseApps) {
-                    Text(if (preferences.packages.isEmpty()) "Elegir apps" else "Cambiar apps elegidas (${preferences.packages.size})")
+                if (preferences.packages.isNotEmpty()) TextButton(onClick = onChooseApps) {
+                    Text("Cambiar apps elegidas (${preferences.packages.size})")
                 }
             }
         }
