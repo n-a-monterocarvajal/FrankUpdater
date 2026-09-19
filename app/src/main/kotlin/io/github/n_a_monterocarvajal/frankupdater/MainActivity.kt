@@ -41,4 +41,12 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onStart() { super.onStart(); visible = true }
+    override fun onStop() { visible = false; super.onStop() }
+
+    companion object {
+        /** Whether the UI is on screen: background installs then confirm in place instead of by notification. */
+        @Volatile internal var visible = false
+    }
 }

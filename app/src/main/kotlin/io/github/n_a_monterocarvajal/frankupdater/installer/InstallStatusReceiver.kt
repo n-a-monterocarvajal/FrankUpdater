@@ -61,7 +61,9 @@ class InstallStatusReceiver : BroadcastReceiver() {
                     InstallationEvents.emit(InstallationEvent.AwaitingConfirmation(sessionId))
                     confirmation.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     // Background installs cannot start activities; the user confirms from a notification instead.
-                    if (intent.getBooleanExtra(EXTRA_BACKGROUND, false)) notifyConfirmation(context, intent, sessionId, confirmation)
+                    // With the app on screen (e.g. "Actualizar" on an update card) Android lets it open the prompt directly.
+                    if (intent.getBooleanExtra(EXTRA_BACKGROUND, false) && !io.github.n_a_monterocarvajal.frankupdater.MainActivity.visible)
+                        notifyConfirmation(context, intent, sessionId, confirmation)
                     else context.startActivity(confirmation)
                 }
             }

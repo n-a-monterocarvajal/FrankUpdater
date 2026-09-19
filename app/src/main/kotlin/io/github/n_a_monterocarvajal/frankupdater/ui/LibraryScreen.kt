@@ -517,7 +517,7 @@ private fun shareEntry(context: android.content.Context, entry: PackageLibraryEn
     context.startActivity(Intent.createChooser(intent, "Compartir paquete"))
 }
 
-private fun formatBytes(bytes: Long): String = when {
+internal fun formatBytes(bytes: Long): String = when {
     bytes >= 1_048_576 -> String.format(Locale.ROOT, "%.1f MB", bytes / 1_048_576.0)
     bytes >= 1024 -> String.format(Locale.ROOT, "%.1f KB", bytes / 1024.0)
     else -> "$bytes B"

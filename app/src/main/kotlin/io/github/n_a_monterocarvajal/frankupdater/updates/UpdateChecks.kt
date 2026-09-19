@@ -31,7 +31,9 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.*
 
 internal data class UpdateObservation(val packageName: String, val installed: Long, val available: Long?, val status: String,
-    val source: String? = null, val label: String? = null, val installedName: String? = null, val availableName: String? = null)
+    val source: String? = null, val label: String? = null, val installedName: String? = null, val availableName: String? = null,
+    /** What "Actualizar" on the result card enqueues (F-49): the recommended version, installed after verification. */
+    val download: DownloadRequest? = null)
 
 class UpdatePreferences(context: Context) {
     private val preferences = context.getSharedPreferences("update_checks", 0)
@@ -113,22 +115,23 @@ class UpdateCheckWorker(context: Context, parameters: WorkerParameters) : Corout
                             // A source that publishes the installed signer beats a higher version whose signer is unknown:
                             // e.g. IzzyOnDroid's developer build cannot update an F-Droid-signed install.
                             val confirmed = eligible.firstOrNull { it.signerDigests.any(signers::contains) }
-                            // Only a signer-confirmed version is fetched and installed unattended.
-                            if (confirmed != null && app.packageName in preferences.autoUpdate) {
-                                PackageDownloads.enqueue(applicationContext, DownloadRequest(app.packageName, confirmed.versionCode,
-                                    confirmed.source, confirmed.packageType, requireNotNull(confirmed.metadataUrl),
-                                    confirmed.artifacts.firstOrNull()?.uri?.takeIf { confirmed.downloadMode == DownloadMode.Direct },
-                                    confirmed.artifacts.firstOrNull()?.sha256, confirmed.artifacts.firstOrNull()?.sizeBytes,
-                                    install = true))
-                            }
                             val best = confirmed ?: eligible.firstOrNull { it.signerDigests.isEmpty() }
+                            val download = best?.metadataUrl?.let { page ->
+                                DownloadRequest(app.packageName, best.versionCode, best.source, best.packageType, page,
+                                    best.artifacts.firstOrNull()?.uri?.takeIf { best.downloadMode == DownloadMode.Direct },
+                                    best.artifacts.firstOrNull()?.sha256, best.artifacts.firstOrNull()?.sizeBytes, install = true)
+                            }
+                            // Only a signer-confirmed version is fetched and installed unattended.
+                            if (confirmed != null && download != null && app.packageName in preferences.autoUpdate) {
+                                PackageDownloads.enqueue(applicationContext, download)
+                            }
                             UpdateObservation(app.packageName, app.versionCode, best?.versionCode,
                                 when {
                                     confirmed != null -> "Versión por verificar · firma coincide con la instalada"
                                     best != null -> "Versión por verificar · firma sin confirmar hasta descargar"
                                     else -> "Sin versión superior elegible en el historial consultado"
                                 },
-                                best?.source?.label, app.displayName, app.versionName, best?.versionName)
+                                best?.source?.label, app.displayName, app.versionName, best?.versionName, download)
                         }
                     } catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) {
