@@ -6,7 +6,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Column
@@ -44,7 +43,6 @@ internal fun SettingsRoute(
     val updates = remember { UpdatePreferences(context) }
     var mode by remember { mutableStateOf(installer.mode) }
     var enabled by remember { mutableStateOf(updates.enabled) }
-    var packages by remember { mutableStateOf(updates.packages.sorted().joinToString("\n")) }
     var message by remember { mutableStateOf("") }
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     Column(
@@ -106,18 +104,14 @@ internal fun SettingsRoute(
         }
         UiSection(
             title = "Comprobaciones periódicas",
-            supporting = "Cada 24 horas, con red y batería suficiente. Solo se comparte la lista seleccionada con APKPure; no se descarga ni instala nada.",
+            supporting = "Cada 24 horas, con red y batería suficiente. Se consultan APKPure, APKMirror, F-Droid e IzzyOnDroid " +
+                "para las apps elegidas en Actualizaciones. Solo se descargan e instalan solas las que tengan activada " +
+                "la actualización automática.",
             modifier = Modifier.padding(top = 24.dp),
         ) {
-            OutlinedTextField(packages, { packages = it }, label = { Text("Paquetes, uno por línea (máximo 50)") },
-                keyboardOptions = literalKeyboard(androidx.compose.ui.text.input.KeyboardType.Ascii), modifier = Modifier.fillMaxWidth())
-            Button(onClick = {
-                try {
-                    updates.packages = packages.lines().map(String::trim).filter(String::isNotBlank).toSet()
-                    UpdateSchedule.configure(context)
-                    message = "Paquetes guardados."
-                } catch (error: IllegalArgumentException) { message = error.message ?: "Nombre de paquete inválido." }
-            }) { Text("Guardar paquetes") }
+            // The selection lives in the Updates tab (single source of truth); here only its summary.
+            Text("${updates.packages.size} apps elegidas en Actualizaciones · ${updates.autoUpdate.size} con actualización automática",
+                style = MaterialTheme.typography.bodyLarge)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Switch(enabled, onCheckedChange = {
                     enabled = it; updates.enabled = it; UpdateSchedule.configure(context)

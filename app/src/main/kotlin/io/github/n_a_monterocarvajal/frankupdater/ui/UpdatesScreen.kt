@@ -83,7 +83,7 @@ internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDev
                             Button(enabled = preferences.packages.isNotEmpty(), onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
                         }
                         if (preferences.packages.isEmpty()) {
-                            Text("Selecciona paquetes en Ajustes para comenzar.", color = MaterialTheme.colorScheme.tertiary)
+                            Text("Elige apps en \"Volver a seleccionar aplicaciones\" y pulsa Comprobar.", color = MaterialTheme.colorScheme.tertiary)
                         }
                     }
                 }
