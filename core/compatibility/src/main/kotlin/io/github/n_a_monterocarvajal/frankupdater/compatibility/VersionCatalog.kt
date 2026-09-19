@@ -51,7 +51,7 @@ data class VersionSelection(
         .sortedBy { SOURCE_ORDER.indexOf(it.artifact.source) }
 
     private companion object {
-        val SOURCE_ORDER = listOf(Source.GooglePlay, Source.ApkMirror, Source.ApkPure)
+        val SOURCE_ORDER = listOf(Source.GooglePlay, Source.ApkMirror, Source.ApkPure, Source.FDroid, Source.IzzyOnDroid)
     }
 }
 

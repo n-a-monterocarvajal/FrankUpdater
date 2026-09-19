@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -20,14 +21,16 @@ import io.github.n_a_monterocarvajal.frankupdater.compatibility.ReleaseChannel
 import io.github.n_a_monterocarvajal.frankupdater.compatibility.VersionCatalog
 import io.github.n_a_monterocarvajal.frankupdater.device.AndroidGenericDeviceProfileProvider
 import io.github.n_a_monterocarvajal.frankupdater.inventory.AndroidInstalledAppRepository
-import io.github.n_a_monterocarvajal.frankupdater.model.Source
-import io.github.n_a_monterocarvajal.frankupdater.sources.PureParser
+import io.github.n_a_monterocarvajal.frankupdater.sources.MirrorAppStore
+import io.github.n_a_monterocarvajal.frankupdater.sources.label
+import io.github.n_a_monterocarvajal.frankupdater.sources.lookupSources
 import io.github.n_a_monterocarvajal.frankupdater.sources.WebSourceClient
 import io.github.n_a_monterocarvajal.frankupdater.sources.requirePackageName
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.*
 
-internal data class UpdateObservation(val packageName: String, val installed: Long, val available: Long?, val status: String)
+internal data class UpdateObservation(val packageName: String, val installed: Long, val available: Long?, val status: String,
+    val source: String? = null)
 
 class UpdatePreferences(context: Context) {
     private val preferences = context.getSharedPreferences("update_checks", 0)
@@ -70,26 +73,44 @@ class UpdateCheckWorker(context: Context, parameters: WorkerParameters) : Corout
         val preferences = UpdatePreferences(applicationContext)
         if (!preferences.enabled && !inputData.getBoolean("manual", false)) return Result.success()
         return try {
-            withTimeout(8 * 60 * 1000L) {
-                val installed = AndroidInstalledAppRepository(applicationContext).getInstalledApps()
-                    .filter { it.packageName in preferences.packages }
+            // ponytail: sequential, up to ~16 requests per package; parallelize per source if 50 packages exceed this.
+            withTimeout(20 * 60 * 1000L) {
+                val repository = AndroidInstalledAppRepository(applicationContext)
+                val installed = repository.getInstalledApps().filter { it.packageName in preferences.packages }
                 val device = AndroidGenericDeviceProfileProvider(applicationContext).getDeviceProfile()
                 val client = WebSourceClient()
+                val mirrorApps = MirrorAppStore(applicationContext)
                 val rows = installed.map { app ->
                     ensureActive()
                     try {
-                        val entries = runInterruptible(Dispatchers.IO) {
-                            PureParser.history(client.text("https://tapi.pureapk.com/v3/get_app_his_version?package_name=${app.packageName}&hl=en",
-                                Source.ApkPure, mapOf("Ual-Access-Businessid" to "projecta", "Ual-Access-ProjectA" to
-                                    "{\"device_info\":{\"os_ver\":\"${device.sdk}\"}}")), app.packageName)
+                        val signers = repository.signers(app.packageName)
+                        val lookup = runInterruptible(Dispatchers.IO) {
+                            lookupSources(client, app.packageName, device.sdk, signers, mirrorApps[app.packageName])
                         }
-                        val selection = VersionCatalog().select(app.packageName, entries, device, app.versionCode)
-                        val available = selection.assessments.firstOrNull {
-                            it.entry.artifact.versionCode > app.versionCode && it.incompatibilities.isEmpty() &&
-                                it.entry.channel != ReleaseChannel.Preview
-                        }?.entry?.artifact?.versionCode
-                        UpdateObservation(app.packageName, app.versionCode, available,
-                            if (available != null) "Versión por verificar" else "Sin versión superior elegible en el historial consultado")
+                        mirrorApps.remember(app.packageName, lookup)
+                        lookup.failures.forEach { (source, reason) -> Log.w("FrankUpdater", "${app.packageName} @ $source: $reason") }
+                        if (lookup.entries.isEmpty()) {
+                            UpdateObservation(app.packageName, app.versionCode, null,
+                                if (lookup.failedSources.isEmpty()) "No figura en APKPure, APKMirror, F-Droid ni IzzyOnDroid"
+                                else "Fuente no disponible")
+                        } else {
+                            val selection = VersionCatalog().select(app.packageName, lookup.entries, device, app.versionCode)
+                            val eligible = selection.assessments.filter {
+                                it.entry.artifact.versionCode > app.versionCode && it.incompatibilities.isEmpty() &&
+                                    it.entry.channel != ReleaseChannel.Preview
+                            }.map { it.entry.artifact }
+                            // A source that publishes the installed signer beats a higher version whose signer is unknown:
+                            // e.g. IzzyOnDroid's developer build cannot update an F-Droid-signed install.
+                            val confirmed = eligible.firstOrNull { it.signerDigests.any(signers::contains) }
+                            val best = confirmed ?: eligible.firstOrNull { it.signerDigests.isEmpty() }
+                            UpdateObservation(app.packageName, app.versionCode, best?.versionCode,
+                                when {
+                                    confirmed != null -> "Versión por verificar · firma coincide con la instalada"
+                                    best != null -> "Versión por verificar · firma sin confirmar hasta descargar"
+                                    else -> "Sin versión superior elegible en el historial consultado"
+                                },
+                                best?.source?.label)
+                        }
                     } catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { UpdateObservation(app.packageName, app.versionCode, null, "Fuente no disponible") }
                 }

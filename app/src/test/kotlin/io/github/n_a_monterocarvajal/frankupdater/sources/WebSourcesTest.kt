@@ -32,6 +32,10 @@ class WebSourcesTest {
 
     @Test fun `preview labels are not promoted to stable and release channel reaches variants`() {
         assertEquals(io.github.n_a_monterocarvajal.frankupdater.compatibility.ReleaseChannel.Unknown, releaseChannel("1.2.0"))
+        for (label in listOf("F-Droid 2.0-alpha8", "App 3.1 beta2", "App 1.0-rc1", "Calculator (Early Access)")) {
+            assertEquals(label, io.github.n_a_monterocarvajal.frankupdater.compatibility.ReleaseChannel.Preview, releaseChannel(label))
+        }
+        assertEquals(io.github.n_a_monterocarvajal.frankupdater.compatibility.ReleaseChannel.Unknown, releaseChannel("Alphabet Launcher 2.0"))
         val variants = MirrorParser.variants("<title>Calculator (Early Access)</title>" + fixture("mirror.html"), mirror)
         assertTrue(variants.all { it.channel == io.github.n_a_monterocarvajal.frankupdater.compatibility.ReleaseChannel.Preview })
     }
@@ -57,7 +61,7 @@ class WebSourcesTest {
     @Test fun `variant page completes requirements and binds the file hash, not the certificate`() {
         val details = MirrorParser.variantDetails(fixture("mirror-variant.html"), mirror)
         assertEquals(MirrorVariantDetails(200, 26, 37, listOf("arm64-v8a", "x86_64"), 113_724_209,
-            "a66ee23228d5c6d3a402083dbe9d97e8f7a2f3f38a0ffab51e547b1bf49d3f08"), details)
+            "a66ee23228d5c6d3a402083dbe9d97e8f7a2f3f38a0ffab51e547b1bf49d3f08", "org.example.app", "1".repeat(64)), details)
         val row = MirrorVariant("2.0", "arm64-v8a", "Android 8.0+", "nodpi", mirror, PackageType.MonolithicApk, null)
         assertNull(row.catalogEntry("org.example.app"))
         val entry = row.catalogEntry("org.example.app", details)!!
@@ -65,10 +69,39 @@ class WebSourcesTest {
         assertEquals(200L, entry.artifact.versionCode)
         assertEquals(37, entry.artifact.targetSdk)
         assertEquals(113_724_209L, entry.artifact.artifacts.single().sizeBytes)
+        assertEquals(setOf("1".repeat(64)), entry.artifact.signerDigests)
         val universal = MirrorParser.variantDetails(fixture("mirror-variant.html")
             .replace("arm64-v8a + x86_64", "universal").replace("APK file hashes", "none"), mirror)
         assertEquals(emptyList<String>(), universal.abis)
         assertNull(universal.sha256)
+    }
+
+    @Test fun `F-Droid repositories list versions, mark unsuggested ones as previews and build repo URLs`() {
+        val json = """{"packageName":"org.example.app","suggestedVersionCode":"10","packages":[
+            {"versionName":"1.1-beta","versionCode":"11"},{"versionName":"1.0","versionCode":"10"}]}"""
+        val entries = FdroidParser.history(json, "org.example.app", Source.IzzyOnDroid)
+        assertEquals(listOf(11L, 10L), entries.map { it.artifact.versionCode })
+        assertEquals(io.github.n_a_monterocarvajal.frankupdater.compatibility.ReleaseChannel.Preview, entries.first().channel)
+        assertEquals("https://apt.izzysoft.de/fdroid/repo/org.example.app_10.apk", entries.last().artifact.artifacts.single().uri)
+        assertFalse(entries.last().constraintsKnown)
+        assertThrows(IllegalArgumentException::class.java) { FdroidParser.history(json, "other.app", Source.FDroid) }
+    }
+
+    @Test fun `mirror search keeps only release links`() {
+        val html = """<div class="appRow"><h5 class="appRowTitle"><a href="/apk/dev/app/app-1-0-release/">App 1.0</a></h5>
+            <a href="/apk/dev/">by Dev</a></div>
+            <div class="appRow"><h5 class="appRowTitle"><a href="https://evil.invalid/x-release/">Evil</a></h5></div>"""
+        assertEquals(listOf(WebRelease("App 1.0", "https://www.apkmirror.com/apk/dev/app/app-1-0-release/")),
+            MirrorParser.searchReleases(html, mirror))
+    }
+
+    @Test fun `mirror feed lists release pages and release URLs map back to the app page`() {
+        val xml = """<?xml version="1.0"?><rss><channel><link>https://www.apkmirror.com/apk/dev/app/</link>
+            <item><title>App 2.0 by Dev</title><link>https://www.apkmirror.com/apk/dev/app/app-2-0-release/</link></item>
+            <item><title>Foreign</title><link>https://evil.invalid/app-1-release/</link></item></channel></rss>"""
+        assertEquals(listOf(WebRelease("App 2.0 by Dev", "https://www.apkmirror.com/apk/dev/app/app-2-0-release/")),
+            MirrorParser.feedReleases(xml))
+        assertEquals("https://www.apkmirror.com/apk/dev/app/", MirrorParser.appUrl("https://www.apkmirror.com/apk/dev/app/app-2-0-release/"))
     }
 
     @Test fun `changed markup challenge and hostile links never become valid results`() {
@@ -98,6 +131,8 @@ class WebSourcesTest {
         val entry = PureParser.history(json, "org.example.app").single()
         assertEquals(23, entry.artifact.minSdk)
         assertEquals(34, entry.artifact.targetSdk)
+        val signed = PureParser.history(json.replace("\"version_name\"", "\"sign\":[\"5EF5AE4028C98492E2B2ADE34FFF286605D5068F\",\"bad\"],\"version_name\""), "org.example.app").single()
+        assertEquals(setOf("5ef5ae4028c98492e2b2ade34fff286605d5068f"), signed.artifact.signerDigests)
         assertTrue(entry.constraintsKnown)
     }
 

@@ -52,7 +52,7 @@ internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDev
                 item {
                     UiSection(
                         title = "Comprobaciones de actualizaciones",
-                        supporting = "APKPure consulta los paquetes elegidos en Ajustes. Todo archivo se verifica antes de instalarse.",
+                        supporting = "APKPure, APKMirror, F-Droid e IzzyOnDroid consultan los paquetes elegidos. Todo archivo se verifica antes de instalarse.",
                     ) {
                         if (preferences.checkedAt > 0) {
                             Text(
@@ -74,7 +74,7 @@ internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDev
                     Card(onClick = { onOpenPackage(row.packageName) }, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp)) {
                             Text(row.packageName, style = MaterialTheme.typography.titleMedium)
-                            Text("Instalada: ${row.installed} · Disponible: ${row.available ?: "Sin confirmar"}")
+                            Text("Instalada: ${row.installed} · Disponible: ${row.available?.let { "$it" + (row.source?.let { source -> " ($source)" } ?: "") } ?: "Sin confirmar"}")
                             Text(row.status, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
                                 "Toca para consultar fuentes, descargar y verificar.",

@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import io.github.n_a_monterocarvajal.frankupdater.compatibility.*
 import io.github.n_a_monterocarvajal.frankupdater.model.*
 import io.github.n_a_monterocarvajal.frankupdater.sources.*
+import io.github.n_a_monterocarvajal.frankupdater.inventory.AndroidInstalledAppRepository
 import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackageLibrary
 import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackagePipeline
 import io.github.n_a_monterocarvajal.frankupdater.verification.VerificationExpectations
@@ -55,6 +56,7 @@ private object WebSearch {
     val message = mutableStateOf("")
     val failedSources = mutableStateOf<Set<Source>>(emptySet())
     val variantDetails = mutableStateOf<Map<String, MirrorVariantDetails>>(emptyMap())
+    val installedSigners = mutableStateOf<Set<String>>(emptySet())
 }
 
 @Composable
@@ -84,6 +86,7 @@ internal fun WebSourcesCard(
     var assisted by remember { mutableStateOf<WebChoice?>(null) }
     var shown by remember(packageName, releases, variants, entries) { mutableIntStateOf(50) }
     var variantDetails by WebSearch.variantDetails
+    var installedSigners by WebSearch.installedSigners
     LaunchedEffect(variants, variantDetails, packageName) {
         if (variants.isNotEmpty()) onEntries(variants.mapNotNull { it.catalogEntry(packageName, variantDetails[it.url]) })
     }
@@ -95,6 +98,10 @@ internal fun WebSourcesCard(
                 .getOrNull()
         }.toMap()
         variants = list
+        // A manually consulted APKMirror app that carries this package becomes the feed for later checks.
+        list.firstOrNull { variantDetails[it.url]?.packageName == packageName }?.let { variant ->
+            MirrorAppStore(context).remember(packageName, MirrorParser.appUrl(MirrorParser.appUrl(variant.url)))
+        }
     }
 
     suspend fun download(selected: WebChoice, expectedCode: Long, capturedUrl: String? = null, headers: Map<String, String> = emptyMap()) {
@@ -168,13 +175,19 @@ internal fun WebSourcesCard(
     fun consultPure() {
         act(Source.ApkPure) {
             requirePackageName(packageName)
-            val found = runInterruptible(Dispatchers.IO) {
-                PureParser.history(client.text("https://tapi.pureapk.com/v3/get_app_his_version?package_name=$packageName&hl=en",
-                    Source.ApkPure, mapOf("Ual-Access-Businessid" to "projecta", "Ual-Access-ProjectA" to
-                        "{\"device_info\":{\"os_ver\":\"${requireNotNull(device).sdk}\"}}")), packageName)
+            val requested = packageName
+            val mirrorApps = MirrorAppStore(context)
+            val signers = AndroidInstalledAppRepository(context).signers(requested)
+            installedSigners = signers
+            val lookup = runInterruptible(Dispatchers.IO) {
+                lookupSources(client, requested, requireNotNull(device).sdk, signers, mirrorApps[requested])
             }
-            onEntries(found)
-            message = "Historial consultado. Revisa versión y variante antes de descargar."
+            mirrorApps.remember(requested, lookup)
+            failedSources = lookup.failedSources
+            onEntries(lookup.entries)
+            message = if (lookup.entries.isEmpty()) "Ninguna fuente tiene este paquete con una firma compatible."
+                else "Fuentes consultadas: " + lookup.entries.map { it.artifact.source.label }.distinct().joinToString() +
+                    ". Revisa versión y variante antes de descargar."
         }
     }
 
@@ -222,7 +235,7 @@ internal fun WebSourcesCard(
                 keyboardOptions = literalKeyboard(KeyboardType.Ascii),
                 modifier = Modifier.fillMaxWidth())
             Button(enabled = !busy && device != null && packageName.isNotBlank(), onClick = ::consultPure) {
-                Text("Consultar APKPure")
+                Text("Consultar fuentes")
             }
             OutlinedTextField(mirrorUrl, { mirrorUrl = it.take(2048); releases = emptyList(); variants = emptyList(); choice = null },
                 label = { Text("Página de aplicación o release en APKMirror") }, singleLine = true, enabled = !busy,
@@ -287,6 +300,10 @@ internal fun WebSourcesCard(
                         ReleaseChannel.Preview -> "Canal preliminar"
                         ReleaseChannel.Stable -> "Canal estable"
                         ReleaseChannel.Unknown -> "Canal no confirmado"
+                    } + " · " + when {
+                        installedSigners.isEmpty() -> "app no instalada"
+                        artifact.signerDigests.any(installedSigners::contains) -> "firma coincide con la instalada"
+                        else -> "firma sin confirmar hasta descargar"
                     }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (assessment.incompatibilities.isNotEmpty()) {
                         Text("No compatible: ${assessment.incompatibilities.joinToString()}", color = MaterialTheme.colorScheme.error)

@@ -19,11 +19,11 @@ internal data class MirrorVariant(
 /** Requirements published on an APKMirror variant page; `sha256` exists for single APKs, not for bundles. */
 internal data class MirrorVariantDetails(
     val versionCode: Long?, val minSdk: Int?, val targetSdk: Int?, val abis: List<String>?,
-    val sizeBytes: Long?, val sha256: String?,
+    val sizeBytes: Long?, val sha256: String?, val packageName: String? = null, val signerSha256: String? = null,
 )
 
 internal fun releaseChannel(label: String): ReleaseChannel =
-    if (Regex("(?i)\\b(alpha|beta|early[ -]access|preview|rc[0-9]*)\\b").containsMatchIn(label))
+    if (Regex("(?i)\\b((alpha|beta|preview|nightly|rc)[0-9]*|early[ -]access)\\b").containsMatchIn(label))
         ReleaseChannel.Preview else ReleaseChannel.Unknown
 
 /** Ports APKMD table selectors; intentionally does not port getFilteredVariant. */
@@ -73,7 +73,9 @@ internal object MirrorParser {
         fun number(row: String, pattern: String) = Regex(pattern).find(rows[row].orEmpty())?.groupValues?.get(1)
         val abiLine = rows["Supported architectures and screen densities"]?.lineSequence()?.map(String::trim)
             ?.firstOrNull(String::isNotEmpty)
-        val hashes = parsed.selectFirst("#safeDownload")?.text()?.substringAfter("APK file hashes", "").orEmpty()
+        val safe = parsed.selectFirst("#safeDownload")?.text().orEmpty()
+        val hashes = safe.substringAfter("APK file hashes", "")
+        val certificate = safe.substringAfter("certificate fingerprints", "").substringBefore("APK file hashes")
         return MirrorVariantDetails(
             versionCode = number("APK details", "Version:[^(]*\\((\\d+)\\)")?.toLongOrNull()?.takeIf { it > 0 },
             minSdk = number("Android version", "Min:[^\\n]*API (\\d+)")?.toIntOrNull(),
@@ -82,8 +84,30 @@ internal object MirrorParser {
                 ?.let { list -> if (list.any { it.equals("universal", true) || it.equals("noarch", true) }) emptyList() else list },
             sizeBytes = number("APK file size", "\\(([\\d,]+) bytes\\)")?.replace(",", "")?.toLongOrNull()?.takeIf { it > 0 },
             sha256 = Regex("SHA-256:\\s*([0-9a-f]{64})").find(hashes)?.groupValues?.get(1),
+            packageName = number("APK details", "Package:\\s*([A-Za-z0-9_.]+)"),
+            signerSha256 = Regex("SHA-256:\\s*([0-9a-f]{64})").find(certificate)?.groupValues?.get(1),
         )
     }
+
+    /** Release pages from a site search; the search is fuzzy, so callers must check the package on each variant page. */
+    fun searchReleases(html: String, url: String): List<WebRelease> =
+        document(html, url).select("h5.appRowTitle a[href*=-release/]").mapNotNull { link ->
+            runCatching { WebRelease(link.text(), sourceUrl(link.absUrl("href"), Source.ApkMirror).toString()) }.getOrNull()
+        }.filter { it.name.isNotBlank() }.distinctBy { it.url }.take(20)
+
+    /** Release pages from an app's RSS feed (`<app>/feed/`), newest first. The feed is not behind the search challenge. */
+    fun feedReleases(xml: String): List<WebRelease> {
+        require(xml.length <= 2 * 1024 * 1024)
+        return Jsoup.parse(xml, "", org.jsoup.parser.Parser.xmlParser()).select("item").mapNotNull { item ->
+            val link = item.selectFirst("link")?.text()?.trim() ?: return@mapNotNull null
+            if (!link.contains("-release/")) return@mapNotNull null
+            runCatching { WebRelease(item.selectFirst("title")?.text().orEmpty(), sourceUrl(link, Source.ApkMirror).toString()) }.getOrNull()
+        }.distinctBy { it.url }.take(20)
+    }
+
+    /** `https://www.apkmirror.com/apk/<dev>/<app>/` for a release page URL. */
+    fun appUrl(releaseUrl: String): String =
+        sourceUrl(releaseUrl.trimEnd('/').substringBeforeLast('/') + "/", Source.ApkMirror).toString()
 
     fun downloadPage(html: String, url: String): String = sourceUrl(
         requireNotNull(document(html, url).selectFirst("a.downloadButton[href]")).absUrl("href"),
@@ -110,7 +134,7 @@ internal fun MirrorVariant.catalogEntry(packageName: String, details: MirrorVari
         minSdk = minSdk, maxSdk = null, targetSdk = details?.targetSdk,
         abis = details?.abis ?: if (rowAbis.any { it.equals("universal", true) || it.equals("noarch", true) }) emptyList() else rowAbis,
         densityDpi = null, locales = emptyList(), requiredFeatures = emptySet(), packageType = type,
-        signerDigests = emptySet(),
+        signerDigests = setOfNotNull(details?.signerSha256),
         // The URI is the variant page, resolved at download time; hash and size still bind the downloaded file.
         artifacts = if (details == null) emptyList() else listOf(RemoteArtifact("download", url, details.sha256, details.sizeBytes)),
         metadataUrl = url, downloadMode = DownloadMode.ResolvableDirect),
@@ -168,17 +192,57 @@ internal object PureParser {
             if (size != null && size <= 0) return@mapNotNull null
             val abis = row.get("native_code")?.takeIf { it.isJsonArray }?.asJsonArray
                 ?.mapNotNull { it.takeIf { value -> value.isJsonPrimitive && value.asJsonPrimitive.isString }?.asString }.orEmpty()
+            // `sign` lists signing certificate SHA-1 digests.
+            val signers = row.get("sign")?.takeIf { it.isJsonArray }?.asJsonArray
+                ?.mapNotNull { it.takeIf { value -> value.isJsonPrimitive }?.asString?.lowercase() }
+                ?.filter { Regex("[0-9a-f]{40}").matches(it) }?.toSet().orEmpty()
             val minSdk = string("sdk_version")?.toIntOrNull()?.takeIf { it > 0 }
             val targetSdk = string("target_sdk_version")?.toIntOrNull()?.takeIf { it > 0 }
             CatalogEntry(ArtifactCandidate(packageName, string("version_name"), code, Source.ApkPure,
                 minSdk = minSdk, maxSdk = null, targetSdk = targetSdk,
                 abis = if (abis.any { it == "universal" || it == "unlimited" }) emptyList() else abis,
                 densityDpi = null, locales = emptyList(), requiredFeatures = emptySet(), packageType = type,
-                signerDigests = emptySet(), artifacts = listOf(RemoteArtifact(
+                signerDigests = signers, artifacts = listOf(RemoteArtifact(
                     if (type == PackageType.Xapk) "download.xapk" else "download.apk", safeUrl, hash, size)),
                 metadataUrl = "https://apkpure.com/apk/$packageName/versions", downloadMode = DownloadMode.Direct),
                 constraintsKnown = minSdk != null && targetSdk != null,
                 channel = releaseChannel(string("version_name").orEmpty()))
+        }.distinct().sortedByDescending { it.artifact.versionCode }.also { require(it.isNotEmpty()) }
+    }
+}
+
+/**
+ * F-Droid-format repository API (`/api/v1/packages/<package>`): version list only. Requirements and signer are
+ * unknown until the APK is downloaded and verified. Versions above `suggestedVersionCode` are treated as previews,
+ * as the F-Droid client does.
+ */
+internal object FdroidParser {
+    fun repo(source: Source): String = when (source) {
+        Source.FDroid -> "https://f-droid.org"
+        Source.IzzyOnDroid -> "https://apt.izzysoft.de/fdroid"
+        else -> error("Repositorio F-Droid inválido.")
+    }
+
+    fun history(json: String, packageName: String, source: Source): List<CatalogEntry> {
+        requirePackageName(packageName)
+        require(json.length <= 1024 * 1024)
+        val root = JsonParser.parseString(json).asJsonObject
+        require(root.get("packageName")?.asString == packageName)
+        val suggested = root.get("suggestedVersionCode")?.asString?.toLongOrNull()
+        val rows = requireNotNull(root.getAsJsonArray("packages")).take(500)
+        return rows.mapNotNull { element ->
+            val row = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+            val code = row.get("versionCode")?.asString?.toLongOrNull()?.takeIf { it > 0 } ?: return@mapNotNull null
+            val name = row.get("versionName")?.takeIf { it.isJsonPrimitive }?.asString
+            val apk = sourceUrl("${repo(source)}/repo/${packageName}_$code.apk", source, download = true).toString()
+            CatalogEntry(ArtifactCandidate(packageName, name, code, source, minSdk = null, maxSdk = null, targetSdk = null,
+                abis = emptyList(), densityDpi = null, locales = emptyList(), requiredFeatures = emptySet(),
+                packageType = PackageType.MonolithicApk, signerDigests = emptySet(),
+                artifacts = listOf(RemoteArtifact("download.apk", apk)),
+                metadataUrl = if (source == Source.FDroid) "https://f-droid.org/packages/$packageName/"
+                    else "https://apt.izzysoft.de/fdroid/index/apk/$packageName",
+                downloadMode = DownloadMode.Direct),
+                channel = if (suggested != null && code > suggested) ReleaseChannel.Preview else releaseChannel(name.orEmpty()))
         }.distinct().sortedByDescending { it.artifact.versionCode }.also { require(it.isNotEmpty()) }
     }
 }
@@ -193,6 +257,8 @@ internal fun sourceUrl(value: String, source: Source, download: Boolean = false)
         Source.ApkMirror -> listOf("apkmirror.com")
         Source.ApkPure -> if (download) listOf("apkpure.com", "apkpure.net", "pureapk.com", "winudf.com")
             else listOf("apkpure.com", "apkpure.net", "pureapk.com")
+        Source.FDroid -> listOf("f-droid.org")
+        Source.IzzyOnDroid -> listOf("apt.izzysoft.de")
         else -> error("Fuente web inválida.")
     }
     // Exact bucket observed in APKMirror's HTTPS redirect; never trust the shared R2 parent domain.

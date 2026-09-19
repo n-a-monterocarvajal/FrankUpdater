@@ -4,6 +4,8 @@ enum class Source {
     GooglePlay,
     ApkMirror,
     ApkPure,
+    FDroid,
+    IzzyOnDroid,
 }
 
 enum class PackageType {

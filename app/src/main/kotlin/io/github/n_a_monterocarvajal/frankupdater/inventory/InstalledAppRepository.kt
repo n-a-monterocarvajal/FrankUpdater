@@ -50,6 +50,17 @@ class AndroidInstalledAppRepository(
         }
     }
 
+    /**
+     * SHA-256 and SHA-1 of the installed signing certificates (with rotation history), or empty when not installed.
+     * Sources publish either digest (APKMirror SHA-256, APKPure SHA-1); the lengths never collide.
+     */
+    @Suppress("DEPRECATION")
+    fun signers(packageName: String): Set<String> = runCatching {
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) PackageManager.GET_SIGNING_CERTIFICATES
+            else PackageManager.GET_SIGNATURES
+        signingCertificates(packageManager.getPackageInfo(packageName, flags)).flatMap { listOf(it.sha256Hex(), it.sha1Hex()) }.toSet()
+    }.getOrDefault(emptySet())
+
     @Suppress("DEPRECATION")
     private fun toInstalledApp(packageInfo: PackageInfo): InstalledApp {
         val applicationInfo = packageInfo.applicationInfo
@@ -110,3 +121,6 @@ internal fun ByteArray.sha256Hex(): String =
     MessageDigest.getInstance("SHA-256")
         .digest(this)
         .joinToString(separator = "") { byte -> "%02x".format(byte) }
+
+private fun ByteArray.sha1Hex(): String =
+    MessageDigest.getInstance("SHA-1").digest(this).joinToString(separator = "") { byte -> "%02x".format(byte) }
