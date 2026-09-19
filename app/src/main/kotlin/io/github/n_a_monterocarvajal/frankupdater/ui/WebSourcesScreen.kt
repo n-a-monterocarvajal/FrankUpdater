@@ -84,7 +84,8 @@ internal fun WebSourcesCard(
     var failedSources by WebSearch.failedSources
     var pendingImport by remember { mutableStateOf<WebChoice?>(null) }
     var assisted by remember { mutableStateOf<WebChoice?>(null) }
-    var shown by remember(packageName, releases, variants, entries) { mutableIntStateOf(50) }
+    var shown by remember(packageName, releases, variants, entries) { mutableIntStateOf(10) }
+    var showIncompatible by remember(packageName) { mutableStateOf(false) }
     var variantDetails by WebSearch.variantDetails
     var installedSigners by WebSearch.installedSigners
     LaunchedEffect(variants, variantDetails, packageName) {
@@ -272,13 +273,21 @@ internal fun WebSourcesCard(
                 }) { Text(release.name) }
             }
             device?.let { profile ->
-                Row {
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Checkbox(includePreviews, onCheckedChange = { includePreviews = it })
                     Text("Incluir versiones preliminares (alpha/beta/RC)")
                 }
-                val selection = VersionCatalog().select(packageName.ifBlank { "unknown.app" },
-                    entries.filter { it.artifact.packageName == packageName }, profile, unavailableSources = failedSources,
-                    includePreviews = includePreviews)
+                // Selection is pure but not cheap: recompute only when its inputs change, not on every progress tick.
+                val selection = remember(packageName, entries, profile, failedSources, includePreviews) {
+                    VersionCatalog().select(packageName.ifBlank { "unknown.app" },
+                        entries.filter { it.artifact.packageName == packageName }, profile, unavailableSources = failedSources,
+                        includePreviews = includePreviews)
+                }
+                val (compatible, incompatible) = remember(selection) {
+                    selection.assessments.distinctBy { assessment ->
+                        assessment.entry.artifact.let { listOf(it.versionCode, it.source, it.abis, it.packageType) }
+                    }.partition { it.incompatibilities.isEmpty() }
+                }
                 if (selection.assessments.isNotEmpty()) {
                     Text("Última versión conocida: ${selection.latestKnownVersionCode}", style = MaterialTheme.typography.titleSmall)
                     Text("Última compatible: ${selection.latestCompatibleVersionCode ?: "Pendiente de comprobar"}")
@@ -291,10 +300,11 @@ internal fun WebSourcesCard(
                         Text("Hay versiones superiores pendientes de comprobar.", color = MaterialTheme.colorScheme.tertiary)
                     }
                 }
-                selection.assessments.take(shown).forEach { assessment ->
+                val rows = if (showIncompatible) compatible + incompatible else compatible
+                rows.take(shown).forEach { assessment ->
                     val artifact = assessment.entry.artifact
-                    Text("${artifact.versionName.orEmpty()} (${artifact.versionCode}) · ${artifact.source} · " +
-                        "${artifact.abis.ifEmpty { listOf("ABI no especificada") }.joinToString()} · ${artifact.packageType}",
+                    Text("${artifact.versionName.orEmpty()} (${artifact.versionCode}) · ${artifact.source.label} · " +
+                        "${artifact.abis.ifEmpty { listOf("todas las ABI") }.joinToString()} · ${artifact.packageType.label}",
                         style = MaterialTheme.typography.titleSmall)
                     Text(when (assessment.entry.channel) {
                         ReleaseChannel.Preview -> "Canal preliminar"
@@ -306,9 +316,9 @@ internal fun WebSourcesCard(
                         else -> "firma sin confirmar hasta descargar"
                     }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (assessment.incompatibilities.isNotEmpty()) {
-                        Text("No compatible: ${assessment.incompatibilities.joinToString()}", color = MaterialTheme.colorScheme.error)
+                        Text("No compatible: " + assessment.incompatibilities.joinToString { it.label }, color = MaterialTheme.colorScheme.error)
                     }
-                    else if (assessment.channelAllowed) {
+                    else if (assessment.channelAllowed) Row {
                         if (artifact.source != Source.GooglePlay && artifact.downloadMode != DownloadMode.Unavailable) TextButton(enabled = !busy, onClick = {
                             select(WebChoice(packageName, artifact.versionCode, artifact.source, artifact.packageType,
                                 requireNotNull(artifact.metadataUrl),
@@ -316,19 +326,20 @@ internal fun WebSourcesCard(
                                 artifact.artifacts.firstOrNull()?.sha256, artifact.artifacts.firstOrNull()?.sizeBytes,
                                 assessment.entry.channel))
                         }) { Text("Elegir esta variante") }
-                        TextButton(enabled = !busy && playConnected, onClick = {
+                        if (playConnected) TextButton(enabled = !busy, onClick = {
                             onPlayVersion(packageName, artifact.versionCode)
                         }) { Text("Solicitar primero en Play") }
                     }
                 }
-                if (maxOf(selection.assessments.size, releases.size, variants.size) > shown) {
-                    TextButton(onClick = { shown += 50 }) { Text("Mostrar más versiones") }
+                if (rows.size > shown) TextButton(onClick = { shown += 20 }) { Text("Mostrar más versiones") }
+                if (incompatible.isNotEmpty()) TextButton(onClick = { showIncompatible = !showIncompatible }) {
+                    Text(if (showIncompatible) "Ocultar las no compatibles" else "Mostrar ${incompatible.size} no compatibles")
                 }
             }
             choice?.let { selected -> Column(Modifier.bringIntoViewRequester(panel), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 Text("Descargar o importar", style = MaterialTheme.typography.titleMedium)
-                Text("Selección: ${selected.packageName} · ${selected.source} · ${selected.type}", style = MaterialTheme.typography.bodyMedium)
+                Text("Selección: ${selected.packageName} · ${selected.source.label} · ${selected.type.label}", style = MaterialTheme.typography.bodyMedium)
                 OutlinedTextField(code, { code = it.filter(Char::isDigit).take(19) },
                     label = { Text("Código de versión que debe tener el archivo") }, singleLine = true,
                     enabled = !busy && selected.versionCode == null, modifier = Modifier.fillMaxWidth())
@@ -338,7 +349,7 @@ internal fun WebSourcesCard(
                         download(selected, requireNotNull(expectedCode))
                     }
                 }) { Text("Descargar y verificar") }
-                progress?.let { (bytes, total) -> DownloadProgress(bytes, total) { job?.cancel() } }
+                DownloadProgress { job?.cancel() }
                 Button(enabled = !busy && expectedCode != null, onClick = {
                     assisted = selected.copy(versionCode = expectedCode)
                 }) { Text("Continuar en web asistida") }
@@ -355,7 +366,9 @@ internal fun WebSourcesCard(
 }
 
 @Composable
-private fun DownloadProgress(bytes: Long, total: Long, onCancel: () -> Unit) {
+private fun DownloadProgress(onCancel: () -> Unit) {
+    // Reads the progress state here so each tick recomposes only this bar, not the whole Search card.
+    val (bytes, total) = WebSearch.progress.value ?: return
     val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (total > 0) LinearProgressIndicator({ (bytes.toFloat() / total).coerceIn(0f, 1f) }, Modifier.fillMaxWidth())
@@ -380,3 +393,18 @@ private fun failureReason(error: Exception): String = when (error) {
 /** Package names and URLs are identifiers: no autocorrection or capitalization from the IME. */
 internal fun literalKeyboard(type: KeyboardType) =
     KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, keyboardType = type)
+
+private val PackageType.label: String get() = when (this) {
+    PackageType.MonolithicApk -> "APK"
+    PackageType.SplitApkSet -> "APKS"
+    PackageType.Apkm -> "APKM"
+    PackageType.Xapk -> "XAPK"
+}
+
+private val IncompatibilityReason.label: String get() = when (this) {
+    IncompatibilityReason.MinSdk -> "requiere una versión de Android más nueva"
+    IncompatibilityReason.MaxSdk -> "no admite esta versión de Android"
+    IncompatibilityReason.TargetSdk -> "targetSdk demasiado antiguo para instalarse"
+    IncompatibilityReason.Abi -> "arquitectura no compatible"
+    IncompatibilityReason.RequiredFeature -> "falta una función de hardware requerida"
+}

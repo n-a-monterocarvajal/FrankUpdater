@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.*
 
 internal data class UpdateObservation(val packageName: String, val installed: Long, val available: Long?, val status: String,
-    val source: String? = null)
+    val source: String? = null, val label: String? = null, val installedName: String? = null, val availableName: String? = null)
 
 class UpdatePreferences(context: Context) {
     private val preferences = context.getSharedPreferences("update_checks", 0)
@@ -92,7 +92,7 @@ class UpdateCheckWorker(context: Context, parameters: WorkerParameters) : Corout
                         if (lookup.entries.isEmpty()) {
                             UpdateObservation(app.packageName, app.versionCode, null,
                                 if (lookup.failedSources.isEmpty()) "No figura en APKPure, APKMirror, F-Droid ni IzzyOnDroid"
-                                else "Fuente no disponible")
+                                else "Fuente no disponible", label = app.displayName, installedName = app.versionName)
                         } else {
                             val selection = VersionCatalog().select(app.packageName, lookup.entries, device, app.versionCode)
                             val eligible = selection.assessments.filter {
@@ -109,10 +109,13 @@ class UpdateCheckWorker(context: Context, parameters: WorkerParameters) : Corout
                                     best != null -> "Versión por verificar · firma sin confirmar hasta descargar"
                                     else -> "Sin versión superior elegible en el historial consultado"
                                 },
-                                best?.source?.label)
+                                best?.source?.label, app.displayName, app.versionName, best?.versionName)
                         }
                     } catch (cancelled: CancellationException) { throw cancelled }
-                    catch (_: Exception) { UpdateObservation(app.packageName, app.versionCode, null, "Fuente no disponible") }
+                    catch (_: Exception) {
+                        UpdateObservation(app.packageName, app.versionCode, null, "Fuente no disponible",
+                            label = app.displayName, installedName = app.versionName)
+                    }
                 }
                 preferences.save(rows)
                 val count = rows.count { it.available != null }

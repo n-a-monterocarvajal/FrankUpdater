@@ -13,7 +13,10 @@ import androidx.compose.ui.unit.dp
 import io.github.n_a_monterocarvajal.frankupdater.device.GenericDeviceProfileProvider
 import io.github.n_a_monterocarvajal.frankupdater.inventory.InstalledAppRepository
 import io.github.n_a_monterocarvajal.frankupdater.updates.UpdatePreferences
+import io.github.n_a_monterocarvajal.frankupdater.updates.UpdateObservation
 import io.github.n_a_monterocarvajal.frankupdater.updates.UpdateSchedule
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import java.text.DateFormat
 import java.util.Date
 
@@ -71,19 +74,49 @@ internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDev
                     }
                 }
                 items(rows, key = { it.packageName }) { row ->
-                    Card(onClick = { onOpenPackage(row.packageName) }, modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(row.packageName, style = MaterialTheme.typography.titleMedium)
-                            Text("Instalada: ${row.installed} · Disponible: ${row.available?.let { "$it" + (row.source?.let { source -> " ($source)" } ?: "") } ?: "Sin confirmar"}")
-                            Text(row.status, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(
-                                "Toca para consultar fuentes, descargar y verificar.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
+                    UpdateResultCard(row) { onOpenPackage(row.packageName) }
                 }
+            }
+        }
+    }
+}
+
+/** Installed state read now, not at check time, so a finished update shows as such (F-37). */
+private class InstalledNow(val icon: androidx.compose.ui.graphics.ImageBitmap?, val versionCode: Long?, val versionName: String?)
+
+@Composable
+private fun UpdateResultCard(row: UpdateObservation, onOpen: () -> Unit) {
+    val context = LocalContext.current
+    val installed by produceState<InstalledNow?>(null, row.packageName) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val manager = context.packageManager
+                @Suppress("DEPRECATION") val info = manager.getPackageInfo(row.packageName, 0)
+                val code = if (android.os.Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong()
+                InstalledNow(runCatching { manager.getApplicationIcon(row.packageName).toBitmap(96, 96)
+                    .asImageBitmap() }.getOrNull(), code, info.versionName)
+            }.getOrNull()
+        }
+    }
+    val current = installed
+    val upToDate = row.available != null && current?.versionCode != null && current.versionCode >= row.available
+    Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            current?.icon?.let { androidx.compose.foundation.Image(it, contentDescription = null, modifier = Modifier.size(40.dp)) }
+                ?: Spacer(Modifier.size(40.dp))
+            Column(Modifier.weight(1f)) {
+                Text(row.label ?: row.packageName, style = MaterialTheme.typography.titleMedium)
+                if (row.label != null) Text(row.packageName, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val installedText = current?.versionName ?: row.installedName ?: row.installed.toString()
+                Text(when {
+                    upToDate -> "Actualizada a $installedText"
+                    row.available != null -> "$installedText → ${row.availableName ?: row.available}" + (row.source?.let { " · $it" } ?: "")
+                    else -> "Instalada: $installedText"
+                }, style = MaterialTheme.typography.bodyLarge)
+                if (!upToDate) Text(row.status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (row.available != null && !upToDate) Text("Toca para consultar fuentes, descargar y verificar.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
             }
         }
     }
