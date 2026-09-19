@@ -170,6 +170,7 @@ Nuevo hallazgo durante la corrección:
 | F-42 | Barra superior y navegación | UI | P2 | La barra "FrankUpdater" ocupa unos 200 px en cada pantalla (más en API 23 con fuente grande). La navegación usa símbolos de texto (↻ ⌕ ▣ ⚙) y etiquetas abreviadas ("Actual.", "Biblio."; F-23). | Parte de F-39. Barra superior compacta o integrada en el contenido; iconos Material Symbols como vectores propios en `res/drawable` (sin dependencias nuevas); etiquetas completas. |
 | F-43 | Inventario | UI | P2 | Tarjetas altas (casilla, nombre, paquete, versión y chips en cuatro líneas): caben 3,5 en API 36. | Parte de F-39. Elementos de lista compactos (`ListItem`: icono o casilla al inicio, nombre como título, paquete y versión como apoyo, chips al final). |
 | F-45 | Fuentes (Android 6–7.0) | Flujo | P1 | En API 23, F-Droid e IzzyOnDroid fallan con `SSLHandshakeException: Trust anchor for certification path not found`: su certificado es de Let's Encrypt, cuya raíz ISRG Root X1 no existe en Android antes de 7.1.1. Además, Buscar decía "Ninguna fuente tiene este paquete" aunque las fuentes no hubieran respondido, y no registraba el motivo. | Confiar también en ISRG Root X1 en esas versiones; mensaje que distinga "sin respuesta" de "no figura"; registrar la causa. |
+| F-46 | Diseño ancho (tableta) | UI | P3 | En `Frank_API36_Tablet` (2560×1600) la navegación lateral funciona, pero el contenido ocupa todo el ancho: el campo de búsqueda del Inventario mide unos 1800 px y "Seleccionar N" queda centrado en una barra inferior de todo el ancho. | Limitar el ancho del contenido (por ejemplo 840 dp, centrado) y alinear las acciones de la barra al final. |
 | F-44 | Biblioteca y Ajustes | UI | P3 | Tarjetas y opciones sin jerarquía clara entre acción principal y secundarias; bloques de texto largos en Ajustes. | Parte de F-39. Se registra; se trabajará tras F-41 a F-43 y F-40. |
 | F-40 | Buscar | UI | P2 | La lista de versiones se ve como texto plano: varias líneas seguidas por versión (versión y fuente, canal y firma, estado, "Inferior a la versión instalada", botón), sin separación entre versiones ni jerarquía entre dato principal y secundario. | Cada versión como elemento propio (tarjeta o `ListItem`): versión y fuente como título, ABI y formato como apoyo, canal, firma y estado como chips o insignias, y la acción alineada. Agrupar por versión y marcar visualmente la recomendada. |
 
@@ -181,7 +182,7 @@ Hallazgos abiertos:
 
 - **P1:** ninguno.
 - **P2:** ninguno automatizable. De F-39 queda lo que depende de D-02 (componentes y movimiento expresivos).
-- **P3:** F-28, F-33, F-44.
+- **P3:** F-28 (decisión D-03), F-33 (cubierto por F-02; falta probar el flujo de web asistida en el emulador), F-44, F-46.
 - **Condicional:** F-06, pasar las filas de Buscar a elementos de la `LazyColumn` si en un dispositivo real sigue habiendo tirones.
 
 Otros pendientes:
@@ -189,7 +190,7 @@ Otros pendientes:
 - Revisar la jerarquía lógica y visual del resto de pantallas con el mismo criterio que F-40: dato principal frente a secundario, agrupación y acción principal destacada.
 - ~~Actualizar `last_reviewed_commit` en `UPSTREAMS.yml`~~ **hecho**: Obtainium (`af286fa`), App Manager (`a6f6628`), Aurora Store (`660670a`, perfil de dispositivo e instalador) y apksig-android (`c120428`); `last_integrated_commit` sin cambios. El vigilante lee el manifiesto (tests de Node correctos y lectura sin red).
 - Recorrido de referencia en `Frank_API23_Phone` (API 23, 1080×1920, 480 dpi, fuente grande): **hecho**. Las cinco pantallas (Inventario, resultados, Buscar, Biblioteca, Ajustes) se muestran sin errores ni crashes; tras la navegación, `gfxinfo` marca un 55 % de frames lentos (el emulador usa GPU por software, así que sirve solo como comparación relativa antes y después de F-39). La barra superior y los bloques de texto ocupan gran parte de la altura útil (360 dp de ancho).
-- Recorrer los flujos en `Frank_API36_Tablet`.
+- Recorrido en `Frank_API36_Tablet`: **parcial**. La pantalla Apps en diseño ancho se muestra con la barra lateral (iconos y etiquetas completas) y sin crashes; con tres emuladores abiertos el sistema de la tableta entró en "system isn't responding" y no se pudieron recorrer las demás pestañas. Hallazgo registrado: F-46. Repetir con solo la tableta abierta.
 - Probar la confirmación de instalación por notificación, con el permiso de notificaciones concedido.
 
 Requieren a una persona:
@@ -226,3 +227,13 @@ En Material 3 1.4.0, el que fija el BOM `2026.08.00`, `MaterialExpressiveTheme`,
 3. **Recrear a mano** algunos patrones expresivos con componentes estables. Da más código propio que mantener y que tirar cuando llegue la versión estable.
 
 Recomendación: 2. Coincide con la vocación de la app (estabilidad en dispositivos antiguos) y no bloquea F-42, F-43 ni F-40.
+
+### D-03 · Textos a `strings.xml` (de F-28)
+
+Todos los textos de la interfaz están en el código Kotlin (varios cientos). Opciones:
+
+1. **Migrarlos ahora a `res/values/strings.xml`.** Permite traducir y probar textos, pero es un cambio amplio y mecánico que toca todas las pantallas y choca con el trabajo de UI en curso.
+2. **Migrar pantalla por pantalla** cuando cada una se rehaga (F-44, D-02), dejando las nuevas ya con recursos.
+3. **Posponerlo** hasta que haya un segundo idioma.
+
+Recomendación: 2. Evita conflictos y reparte el coste.
