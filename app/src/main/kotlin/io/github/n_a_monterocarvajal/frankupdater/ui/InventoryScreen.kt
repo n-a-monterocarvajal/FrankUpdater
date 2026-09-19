@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Button
@@ -177,87 +178,87 @@ private fun InventoryContent(
     val visibleApps = filterInstalledApps(state.apps, query, filter)
     val visibleSelection = selectedPackages.intersect(visibleApps.map(InstalledApp::packageName).toSet())
 
+    // Summary, search and filters scroll away with the list; the selection actions stay pinned at the bottom.
     Column(modifier = modifier) {
-        DeviceSummary(
-            device = state.device,
-            appCount = state.apps.size,
-            userCount = userCount,
-            systemCount = systemCount,
-            onReload = onReload,
-        )
         if (state.apps.isEmpty()) {
+            DeviceSummary(state.device, state.apps.size, userCount, systemCount, onReload)
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No hay aplicaciones visibles en este dispositivo.")
             }
-        } else {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    label = { Text("Buscar por nombre o paquete") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    InventoryFilter.entries.forEach { option ->
-                        FilterChip(
-                            selected = filter == option,
-                            onClick = { filter = option },
-                            label = { Text(when (option) {
-                                InventoryFilter.All -> "Todas"
-                                InventoryFilter.User -> "Usuario"
-                                InventoryFilter.System -> "Sistema"
-                            }) },
-                        )
+            return@Column
+        }
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 300.dp),
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DeviceSummary(state.device, state.apps.size, userCount, systemCount, onReload)
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        label = { Text("Buscar por nombre o paquete") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    )
+                    Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        InventoryFilter.entries.forEach { option ->
+                            FilterChip(
+                                selected = filter == option,
+                                onClick = { filter = option },
+                                label = { Text(when (option) {
+                                    InventoryFilter.All -> "Todas"
+                                    InventoryFilter.User -> "Usuario"
+                                    InventoryFilter.System -> "Sistema"
+                                }) },
+                            )
+                        }
                     }
-                }
-                Text("${visibleApps.size} visibles · ${selectedPackages.size} seleccionadas (máximo 50)")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        enabled = visibleApps.isNotEmpty() && selectedPackages.size < 50,
-                        onClick = {
-                            onSelectedPackagesChange(selectedPackages + visibleApps
-                                .map(InstalledApp::packageName)
-                                .filterNot(selectedPackages::contains)
-                                .take(50 - selectedPackages.size))
-                        },
-                    ) { Text("Seleccionar visibles") }
-                    Button(
-                        enabled = visibleSelection.isNotEmpty(),
-                        onClick = { onCheckUpdates(visibleSelection) },
-                    ) { Text("Comprobar (${visibleSelection.size})") }
+                    Text("${visibleApps.size} visibles · ${selectedPackages.size} seleccionadas (máximo 50)",
+                        Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodyMedium)
+                    if (visibleApps.isEmpty()) Text("No hay aplicaciones que coincidan con el filtro.",
+                        Modifier.padding(horizontal = 16.dp, vertical = 24.dp))
                 }
             }
-            if (visibleApps.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No hay aplicaciones que coincidan con el filtro.")
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 300.dp),
+            items(
+                items = visibleApps,
+                key = InstalledApp::packageName,
+            ) { app ->
+                InstalledAppCard(
+                    app = app,
+                    selected = app.packageName in selectedPackages,
+                    selectionEnabled = app.packageName in selectedPackages || selectedPackages.size < 50,
+                    onSelectedChange = { checked ->
+                        onSelectedPackagesChange(if (checked) selectedPackages + app.packageName
+                            else selectedPackages - app.packageName)
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
+        }
+        Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TextButton(
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(
-                        items = visibleApps,
-                        key = InstalledApp::packageName,
-                    ) { app ->
-                        InstalledAppCard(
-                            app = app,
-                            selected = app.packageName in selectedPackages,
-                            selectionEnabled = app.packageName in selectedPackages || selectedPackages.size < 50,
-                            onSelectedChange = { checked ->
-                                onSelectedPackagesChange(if (checked) selectedPackages + app.packageName
-                                    else selectedPackages - app.packageName)
-                            },
-                        )
-                    }
-                }
+                    enabled = visibleApps.isNotEmpty() && selectedPackages.size < 50,
+                    onClick = {
+                        onSelectedPackagesChange(selectedPackages + visibleApps
+                            .map(InstalledApp::packageName)
+                            .filterNot(selectedPackages::contains)
+                            .take(50 - selectedPackages.size))
+                    },
+                ) { Text("Seleccionar ${visibleApps.size}", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                Button(
+                    enabled = visibleSelection.isNotEmpty(),
+                    onClick = { onCheckUpdates(visibleSelection) },
+                ) { Text("Comprobar (${visibleSelection.size})") }
             }
         }
     }
@@ -301,7 +302,7 @@ private fun DeviceSummary(
                 )
             }
             TextButton(onClick = onReload) {
-                Text("Actualizar")
+                Text("Recargar")
             }
         }
     }
@@ -313,8 +314,9 @@ private fun InstalledAppCard(
     selected: Boolean,
     selectionEnabled: Boolean,
     onSelectedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(selected, onCheckedChange = onSelectedChange, enabled = selectionEnabled)
