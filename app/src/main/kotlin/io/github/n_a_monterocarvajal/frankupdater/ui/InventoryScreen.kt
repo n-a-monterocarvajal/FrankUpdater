@@ -173,7 +173,7 @@ private fun InventoryContent(
     val systemCount = state.apps.count(InstalledApp::isSystemApp)
     val userCount = state.apps.size - systemCount
     var query by rememberSaveable { mutableStateOf("") }
-    var filter by rememberSaveable { mutableStateOf(InventoryFilter.All) }
+    var filter by rememberSaveable { mutableStateOf(InventoryFilter.User) }
     val visibleApps = filterInstalledApps(state.apps, query, filter)
     val visibleSelection = selectedPackages.intersect(visibleApps.map(InstalledApp::packageName).toSet())
 

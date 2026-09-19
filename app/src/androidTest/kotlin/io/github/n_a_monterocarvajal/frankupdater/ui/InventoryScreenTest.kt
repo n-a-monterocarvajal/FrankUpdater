@@ -3,6 +3,7 @@ package io.github.n_a_monterocarvajal.frankupdater.ui
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import io.github.n_a_monterocarvajal.frankupdater.device.GenericDeviceProfileProvider
 import io.github.n_a_monterocarvajal.frankupdater.inventory.InstalledAppRepository
 import io.github.n_a_monterocarvajal.frankupdater.model.GenericDeviceProfile
@@ -58,8 +59,11 @@ class InventoryScreenTest {
         composeRule.onNodeWithText("Android 6.0 · API 23 · armeabi-v7a · 160 dpi")
             .assertIsDisplayed()
         composeRule.onNodeWithText("Aplicación de usuario").assertIsDisplayed()
+        // User apps are the default view; system entries appear under "Todas".
+        composeRule.onNodeWithText("Servicio del sistema").assertDoesNotExist()
+        composeRule.onNodeWithText("Todas").performClick()
         composeRule.onNodeWithText("Servicio del sistema").assertIsDisplayed()
-        composeRule.onNodeWithText("Deshabilitada").assertIsDisplayed()
+        composeRule.onNodeWithText("Deshabilitada").assertExists()
     }
 
     private fun installedApp(
