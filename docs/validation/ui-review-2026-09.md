@@ -150,7 +150,7 @@ Nuevo hallazgo durante la corrección:
 | F-36 | Buscar | Flujo | P1 | La descarga vive en el scope de la pantalla: cambiar de pestaña la cancela. | Descarga en un servicio o `WorkManager` en primer plano, con notificación. |
 | F-37 | Actualizaciones | UI | P3 | Tras actualizar Aurora a 76, los resultados siguen mostrando "Instalada: 73". | Recalcular con la versión instalada al mostrar resultados. |
 | F-38 | Buscar | UI | P3 | Tras llegar a "239 MB de 239 MB", la verificación del XAPK tarda unos 4 min sin indicarlo; la barra se queda llena. | Mostrar "Verificando paquete…" al terminar la descarga. |
-| F-39 | General | UI | P2 | La interfaz usa Material 3 base con ajustes propios. No sigue Material 3 Expressive (M3E): formas, tipografía enfatizada, contenedores y componentes nuevos. | Adoptar M3E en líneas generales (tema, formas, tipografía, navegación) y en particular pantalla por pantalla, con los componentes que ya ofrece el BOM `2026.08.00`. |
+| F-39 | General | UI | P2 | La interfaz usa Material 3 base con ajustes propios. No sigue Material 3 Expressive (M3E): formas, tipografía enfatizada, contenedores y componentes nuevos. | Adoptar M3E en líneas generales (tema, formas, tipografía, navegación) y en particular pantalla por pantalla, con los componentes que ya ofrece el BOM `2026.08.00`. Condición: la app debe seguir sirviendo en dispositivos antiguos (`minSdk 23`). Solo componentes de Compose que funcionen desde API 23; color dinámico solo en Android 12+, con un esquema estático equivalente por debajo; nada que dependa de APIs recientes sin alternativa (desenfoque o `RenderEffect`, API 31+); movimiento y cambios de forma moderados para no penalizar hardware lento. Cada cambio se verifica también en `Frank_API23_Phone`. |
 | F-40 | Buscar | UI | P2 | La lista de versiones se ve como texto plano: varias líneas seguidas por versión (versión y fuente, canal y firma, estado, "Inferior a la versión instalada", botón), sin separación entre versiones ni jerarquía entre dato principal y secundario. | Cada versión como elemento propio (tarjeta o `ListItem`): versión y fuente como título, ABI y formato como apoyo, canal, firma y estado como chips o insignias, y la acción alineada. Agrupar por versión y marcar visualmente la recomendada. |
 
 ## Pendientes
@@ -168,7 +168,7 @@ Otros pendientes:
 
 - Revisar la jerarquía lógica y visual del resto de pantallas con el mismo criterio que F-40: dato principal frente a secundario, agrupación y acción principal destacada.
 - Actualizar `last_reviewed_commit` en `UPSTREAMS.yml` para Obtainium (`af286fa`), App Manager (`a6f6628`), Aurora Store (`660670a`) y apksig-android (`c120428`), según `docs/upstreams/review-2026-09.md`.
-- Recorrer los flujos en los AVD `Frank_API23_Phone` y `Frank_API36_Tablet`.
+- Recorrer los flujos en los AVD `Frank_API23_Phone` y `Frank_API36_Tablet`. Es requisito previo de F-39: sin una base en API 23 no se puede comprobar que M3E no degrada los dispositivos antiguos.
 - Probar la confirmación de instalación por notificación, con el permiso de notificaciones concedido.
 
 Requieren a una persona:
