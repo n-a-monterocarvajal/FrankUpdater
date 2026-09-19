@@ -48,9 +48,16 @@ internal enum class NavigationDestination(
     Updates(
         label = "Actualizaciones",
         navigationLabel = "Actualizaciones",
-        compactLabel = "Apps",
+        compactLabel = "Actualizar",
         icon = R.drawable.ic_nav_updates,
-        description = "Aquí aparecerán las versiones compatibles disponibles.",
+        description = "Versiones nuevas de las apps elegidas y su estado.",
+    ),
+    Apps(
+        label = "Apps",
+        navigationLabel = "Apps",
+        compactLabel = "Apps",
+        icon = R.drawable.ic_nav_apps,
+        description = "Inventario del dispositivo y apps elegidas para comprobar.",
     ),
     Search(
         label = "Buscar",
@@ -96,6 +103,7 @@ fun FrankUpdaterApp(
         requestedPackage = packageName
         selectedIndex = destinations.indexOf(NavigationDestination.Search)
     }
+    val navigate = { destination: NavigationDestination -> selectedIndex = destinations.indexOf(destination) }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         if (useNavigationRail) {
@@ -132,6 +140,7 @@ fun FrankUpdaterApp(
                     requestedPackage = requestedPackage,
                     onOpenPackage = openPackage,
                     onPackageConsumed = { requestedPackage = null },
+                    onNavigate = navigate,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -169,6 +178,7 @@ fun FrankUpdaterApp(
                     requestedPackage = requestedPackage,
                     onOpenPackage = openPackage,
                     onPackageConsumed = { requestedPackage = null },
+                    onNavigate = navigate,
                     modifier = Modifier.padding(contentPadding),
                 )
             }
@@ -188,6 +198,7 @@ private fun DestinationContent(
     requestedPackage: String?,
     onOpenPackage: (String) -> Unit,
     onPackageConsumed: () -> Unit,
+    onNavigate: (NavigationDestination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -209,10 +220,15 @@ private fun DestinationContent(
         ) {
         when (destination) {
             NavigationDestination.Updates -> UpdatesRoute(
+                onOpenPackage = onOpenPackage,
+                onChooseApps = { onNavigate(NavigationDestination.Apps) },
+                modifier = Modifier.fillMaxSize(),
+            )
+            NavigationDestination.Apps -> AppsRoute(
                 installedAppRepository,
                 deviceProfileProvider,
-                onOpenPackage,
-                Modifier.fillMaxSize(),
+                onChecking = { onNavigate(NavigationDestination.Updates) },
+                modifier = Modifier.fillMaxSize(),
             )
             NavigationDestination.Library -> LibraryRoute(
                 packagePipeline,

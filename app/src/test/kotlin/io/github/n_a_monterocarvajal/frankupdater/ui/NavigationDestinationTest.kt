@@ -5,9 +5,9 @@ import org.junit.Test
 
 class NavigationDestinationTest {
     @Test
-    fun `initial navigation contains the four product sections`() {
+    fun `initial navigation contains the five product sections`() {
         assertEquals(
-            listOf("Actualizaciones", "Buscar", "Biblioteca", "Ajustes"),
+            listOf("Actualizaciones", "Apps", "Buscar", "Biblioteca", "Ajustes"),
             NavigationDestination.entries.map { it.label },
         )
     }
@@ -15,7 +15,7 @@ class NavigationDestinationTest {
     @Test
     fun `navigation labels preserve product names`() {
         assertEquals(
-            listOf("Actualizaciones", "Buscar", "Biblioteca", "Ajustes"),
+            listOf("Actualizaciones", "Apps", "Buscar", "Biblioteca", "Ajustes"),
             NavigationDestination.entries.map { it.navigationLabel },
         )
     }

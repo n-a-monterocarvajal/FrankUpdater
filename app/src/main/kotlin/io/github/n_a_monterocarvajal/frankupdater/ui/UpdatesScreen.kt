@@ -20,82 +20,85 @@ import androidx.core.graphics.drawable.toBitmap
 import java.text.DateFormat
 import java.util.Date
 
+/** Inventory and selection (F-48): its own destination; checking hands over to Updates. */
 @Composable
-internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDeviceProfileProvider,
-    onOpenPackage: (String) -> Unit, modifier: Modifier = Modifier) {
-    var checks by rememberSaveable { mutableStateOf(false) }
+internal fun AppsRoute(repository: InstalledAppRepository, device: GenericDeviceProfileProvider,
+    onChecking: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val preferences = remember { UpdatePreferences(context) }
-    var refreshed by remember { mutableIntStateOf(0) }
     var selectedPackages by remember { mutableStateOf(preferences.packages) }
-    var autoUpdate by remember { mutableStateOf(preferences.autoUpdate) }
-    // Pending installs that Android still wants confirmed are announced by notification.
-    val notifications = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
     fun saveSelection(packages: Set<String>) {
         preferences.packages = packages
         selectedPackages = packages
     }
-    Column(modifier.fillMaxSize()) {
-        TextButton(onClick = { checks = !checks }) { Text(if (checks) "Volver a seleccionar aplicaciones" else "Ver resultados de comprobaciones") }
-        if (!checks) InventoryRoute(
-            installedAppRepository = repository,
-            deviceProfileProvider = device,
-            selectedPackages = selectedPackages,
-            onSelectedPackagesChange = ::saveSelection,
-            onCheckUpdates = { packages ->
-                saveSelection(packages)
-                UpdateSchedule.checkNow(context)
-                refreshed++
-                checks = true
-            },
-            modifier = Modifier.weight(1f),
-        )
-        else {
-            // Follow the check job (manual or periodic): show its progress and reload results when it ends.
-            val running by remember { androidx.work.WorkManager.getInstance(context) }
-                .getWorkInfosFlow(androidx.work.WorkQuery.fromUniqueWorkNames(UpdateSchedule.MANUAL, UpdateSchedule.PERIODIC))
-                .collectAsState(emptyList())
-            val active = running.firstOrNull { it.state == androidx.work.WorkInfo.State.RUNNING }
-            val finishedCount = running.count { it.state.isFinished || it.state == androidx.work.WorkInfo.State.ENQUEUED }
-            LaunchedEffect(finishedCount, active == null) { if (active == null) refreshed++ }
-            val rows = remember(refreshed) { preferences.observations() }
-            LazyColumn(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                item {
-                    UiSection(
-                        title = "Comprobaciones de actualizaciones",
-                        supporting = "APKPure, APKMirror, F-Droid e IzzyOnDroid consultan los paquetes elegidos. Todo archivo se verifica antes de instalarse.",
-                    ) {
-                        if (preferences.checkedAt > 0) {
-                            Text(
-                                "Última consulta: ${DateFormat.getDateTimeInstance().format(Date(preferences.checkedAt))}",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                        if (active != null) {
-                            val done = active.progress.getInt("done", 0)
-                            val total = active.progress.getInt("total", 0)
-                            if (total > 0) LinearProgressIndicator({ done.toFloat() / total }, Modifier.fillMaxWidth())
-                            else LinearProgressIndicator(Modifier.fillMaxWidth())
-                            Text(if (total > 0) "Comprobando ${done + 1} de $total…" else "Comprobando…",
-                                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-                        } else {
-                            Button(enabled = preferences.packages.isNotEmpty(), onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
-                        }
-                        if (preferences.packages.isEmpty()) {
-                            Text("Elige apps en \"Volver a seleccionar aplicaciones\" y pulsa Comprobar.", color = MaterialTheme.colorScheme.tertiary)
-                        }
-                    }
+    InventoryRoute(
+        installedAppRepository = repository,
+        deviceProfileProvider = device,
+        selectedPackages = selectedPackages,
+        onSelectedPackagesChange = ::saveSelection,
+        onCheckUpdates = { packages ->
+            saveSelection(packages)
+            UpdateSchedule.checkNow(context)
+            onChecking()
+        },
+        modifier = modifier,
+    )
+}
+
+@Composable
+internal fun UpdatesRoute(onOpenPackage: (String) -> Unit, onChooseApps: () -> Unit, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val preferences = remember { UpdatePreferences(context) }
+    var refreshed by remember { mutableIntStateOf(0) }
+    var autoUpdate by remember { mutableStateOf(preferences.autoUpdate) }
+    // Pending installs that Android still wants confirmed are announced by notification.
+    val notifications = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
+    // Follow the check job (manual or periodic): show its progress and reload results when it ends.
+    val running by remember { androidx.work.WorkManager.getInstance(context) }
+        .getWorkInfosFlow(androidx.work.WorkQuery.fromUniqueWorkNames(UpdateSchedule.MANUAL, UpdateSchedule.PERIODIC))
+        .collectAsState(emptyList())
+    val active = running.firstOrNull { it.state == androidx.work.WorkInfo.State.RUNNING }
+    val finishedCount = running.count { it.state.isFinished || it.state == androidx.work.WorkInfo.State.ENQUEUED }
+    LaunchedEffect(finishedCount, active == null) { if (active == null) refreshed++ }
+    val rows = remember(refreshed) { preferences.observations() }
+    LazyColumn(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+            UiSection(
+                title = "Comprobaciones de actualizaciones",
+                supporting = "APKPure, APKMirror, F-Droid e IzzyOnDroid consultan los paquetes elegidos. Todo archivo se verifica antes de instalarse.",
+            ) {
+                if (preferences.checkedAt > 0) {
+                    Text(
+                        "Última consulta: ${DateFormat.getDateTimeInstance().format(Date(preferences.checkedAt))}",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
-                items(rows, key = { it.packageName }) { row ->
-                    UpdateResultCard(row, row.packageName in autoUpdate, onAutoUpdate = { enabled ->
-                        preferences.autoUpdate = if (enabled) preferences.autoUpdate + row.packageName else preferences.autoUpdate - row.packageName
-                        autoUpdate = preferences.autoUpdate
-                        if (enabled && !preferences.enabled) { preferences.enabled = true; UpdateSchedule.configure(context) }
-                        if (enabled && android.os.Build.VERSION.SDK_INT >= 33) notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                    }) { onOpenPackage(row.packageName) }
+                if (active != null) {
+                    val done = active.progress.getInt("done", 0)
+                    val total = active.progress.getInt("total", 0)
+                    if (total > 0) LinearProgressIndicator({ done.toFloat() / total }, Modifier.fillMaxWidth())
+                    else LinearProgressIndicator(Modifier.fillMaxWidth())
+                    Text(if (total > 0) "Comprobando ${done + 1} de $total…" else "Comprobando…",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                } else {
+                    Button(enabled = preferences.packages.isNotEmpty(), onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
+                }
+                if (preferences.packages.isEmpty()) {
+                    Text("Todavía no hay apps elegidas para comprobar.", color = MaterialTheme.colorScheme.tertiary)
+                }
+                TextButton(onClick = onChooseApps) {
+                    Text(if (preferences.packages.isEmpty()) "Elegir apps" else "Cambiar apps elegidas (${preferences.packages.size})")
                 }
             }
+        }
+        items(rows, key = { it.packageName }) { row ->
+            UpdateResultCard(row, row.packageName in autoUpdate, onAutoUpdate = { enabled ->
+                preferences.autoUpdate = if (enabled) preferences.autoUpdate + row.packageName else preferences.autoUpdate - row.packageName
+                autoUpdate = preferences.autoUpdate
+                if (enabled && !preferences.enabled) { preferences.enabled = true; UpdateSchedule.configure(context) }
+                if (enabled && android.os.Build.VERSION.SDK_INT >= 33) notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }) { onOpenPackage(row.packageName) }
         }
     }
 }
