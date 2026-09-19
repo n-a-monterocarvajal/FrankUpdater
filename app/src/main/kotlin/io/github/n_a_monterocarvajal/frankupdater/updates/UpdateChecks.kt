@@ -63,8 +63,8 @@ class UpdatePreferences(context: Context) {
 }
 
 object UpdateSchedule {
-    private const val PERIODIC = "periodic-update-check"
-    private const val MANUAL = "manual-update-check"
+    internal const val PERIODIC = "periodic-update-check"
+    internal const val MANUAL = "manual-update-check"
     private fun constraints() = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).setRequiresBatteryNotLow(true).build()
     fun configure(context: Context) {
         val manager = WorkManager.getInstance(context)
@@ -88,8 +88,9 @@ class UpdateCheckWorker(context: Context, parameters: WorkerParameters) : Corout
                 val device = AndroidGenericDeviceProfileProvider(applicationContext).getDeviceProfile()
                 val client = WebSourceClient()
                 val mirrorApps = MirrorAppStore(applicationContext)
-                val rows = installed.map { app ->
+                val rows = installed.mapIndexed { index, app ->
                     ensureActive()
+                    setProgress(workDataOf("done" to index, "total" to installed.size))
                     try {
                         val signers = repository.signers(app.packageName)
                         val lookup = runInterruptible(Dispatchers.IO) {

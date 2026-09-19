@@ -27,7 +27,6 @@ internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDev
     val context = LocalContext.current
     val preferences = remember { UpdatePreferences(context) }
     var refreshed by remember { mutableIntStateOf(0) }
-    var checkRequested by rememberSaveable { mutableStateOf(false) }
     var selectedPackages by remember { mutableStateOf(preferences.packages) }
     var autoUpdate by remember { mutableStateOf(preferences.autoUpdate) }
     // Pending installs that Android still wants confirmed are announced by notification.
@@ -48,12 +47,18 @@ internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDev
                 saveSelection(packages)
                 UpdateSchedule.checkNow(context)
                 refreshed++
-                checkRequested = true
                 checks = true
             },
             modifier = Modifier.weight(1f),
         )
         else {
+            // Follow the check job (manual or periodic): show its progress and reload results when it ends.
+            val running by remember { androidx.work.WorkManager.getInstance(context) }
+                .getWorkInfosFlow(androidx.work.WorkQuery.fromUniqueWorkNames(UpdateSchedule.MANUAL, UpdateSchedule.PERIODIC))
+                .collectAsState(emptyList())
+            val active = running.firstOrNull { it.state == androidx.work.WorkInfo.State.RUNNING }
+            val finishedCount = running.count { it.state.isFinished || it.state == androidx.work.WorkInfo.State.ENQUEUED }
+            LaunchedEffect(finishedCount, active == null) { if (active == null) refreshed++ }
             val rows = remember(refreshed) { preferences.observations() }
             LazyColumn(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
@@ -67,10 +72,15 @@ internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDev
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
-                        Button(enabled = preferences.packages.isNotEmpty(), onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
-                        TextButton(onClick = { refreshed++ }) { Text("Actualizar resultados") }
-                        if (checkRequested) {
-                            Text("Comprobación iniciada. Actualiza los resultados cuando termine.", color = MaterialTheme.colorScheme.primary)
+                        if (active != null) {
+                            val done = active.progress.getInt("done", 0)
+                            val total = active.progress.getInt("total", 0)
+                            if (total > 0) LinearProgressIndicator({ done.toFloat() / total }, Modifier.fillMaxWidth())
+                            else LinearProgressIndicator(Modifier.fillMaxWidth())
+                            Text(if (total > 0) "Comprobando ${done + 1} de $total…" else "Comprobando…",
+                                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                        } else {
+                            Button(enabled = preferences.packages.isNotEmpty(), onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
                         }
                         if (preferences.packages.isEmpty()) {
                             Text("Selecciona paquetes en Ajustes para comenzar.", color = MaterialTheme.colorScheme.tertiary)
