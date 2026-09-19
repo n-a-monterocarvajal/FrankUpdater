@@ -107,7 +107,9 @@ internal fun UpdatesRoute(onOpenPackage: (String) -> Unit, onChooseApps: () -> U
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (pending.size > 1) Button(onClick = { pending.forEach(::update) }) { Text("Actualizar todas (${pending.size})") }
-                        OutlinedButton(enabled = preferences.packages.isNotEmpty(), onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
+                        // "Comprobar ahora" is the main action unless there are several updates waiting.
+                        if (pending.size > 1) OutlinedButton(enabled = preferences.packages.isNotEmpty(), onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
+                        else Button(enabled = preferences.packages.isNotEmpty(), onClick = { UpdateSchedule.checkNow(context) }) { Text("Comprobar ahora") }
                     }
                 }
                 if (preferences.packages.isEmpty()) {

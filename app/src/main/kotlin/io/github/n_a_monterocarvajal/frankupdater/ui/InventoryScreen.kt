@@ -66,12 +66,22 @@ internal sealed interface InventoryUiState {
 
 internal enum class InventoryFilter { All, User, System }
 
+/** Process-wide copy of the last inventory read. */
+private var lastInventory: InventoryUiState.Content? = null
+
+/** Play Store and Amazon keep their apps updated themselves; Galaxy Store apps (Good Guardians) stay visible. */
+internal fun fromPlayStore(app: InstalledApp) =
+    app.installerSource?.let { it.contains("com.android.vending") || it.contains("com.amazon") } == true
+
 internal fun filterInstalledApps(
     apps: List<InstalledApp>,
     query: String,
     filter: InventoryFilter,
+    hideDisabled: Boolean = false,
+    hidePlayStore: Boolean = false,
 ): List<InstalledApp> = apps.filter { app ->
     (filter == InventoryFilter.All || app.isSystemApp == (filter == InventoryFilter.System)) &&
+        (!hideDisabled || app.isEnabled) && (!hidePlayStore || !fromPlayStore(app)) &&
         (query.isBlank() || app.displayName.contains(query, ignoreCase = true) ||
             app.packageName.contains(query, ignoreCase = true))
 }
@@ -86,19 +96,20 @@ internal fun InventoryRoute(
     modifier: Modifier = Modifier,
 ) {
     var reloadToken by rememberSaveable { mutableIntStateOf(0) }
+    // The last inventory stays on screen while a fresh one loads, so revisiting the tab does not block on it.
     val state by produceState<InventoryUiState>(
-        initialValue = InventoryUiState.Loading,
+        initialValue = lastInventory ?: InventoryUiState.Loading,
         key1 = installedAppRepository,
         key2 = deviceProfileProvider,
         key3 = reloadToken,
     ) {
-        value = InventoryUiState.Loading
+        if (lastInventory == null) value = InventoryUiState.Loading
         value = try {
             withContext(Dispatchers.IO) {
                 InventoryUiState.Content(
                     apps = installedAppRepository.getInstalledApps(),
                     device = deviceProfileProvider.getDeviceProfile(),
-                )
+                ).also { lastInventory = it }
             }
         } catch (cancellation: CancellationException) {
             throw cancellation
@@ -180,9 +191,18 @@ private fun InventoryContent(
     val systemCount = remember(state.apps) { state.apps.count(InstalledApp::isSystemApp) }
     val userCount = state.apps.size - systemCount
     var query by rememberSaveable { mutableStateOf("") }
-    var filter by rememberSaveable { mutableStateOf(InventoryFilter.User) }
+    // Filters are remembered across launches (F-50); the search text is not.
+    val preferences = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("inventory", 0)
+    var filter by remember { mutableStateOf(runCatching {
+        InventoryFilter.valueOf(preferences.getString("filter", null) ?: "User") }.getOrDefault(InventoryFilter.User)) }
+    var hideDisabled by remember { mutableStateOf(preferences.getBoolean("hide_disabled", true)) }
+    var hidePlayStore by remember { mutableStateOf(preferences.getBoolean("hide_play_store", false)) }
+    fun saveFilters() = preferences.edit().putString("filter", filter.name).putBoolean("hide_disabled", hideDisabled)
+        .putBoolean("hide_play_store", hidePlayStore).apply()
     // Filter only when its inputs change, not on every recomposition (selection, scrolling).
-    val visibleApps = remember(state.apps, query, filter) { filterInstalledApps(state.apps, query, filter) }
+    val visibleApps = remember(state.apps, query, filter, hideDisabled, hidePlayStore) {
+        filterInstalledApps(state.apps, query, filter, hideDisabled, hidePlayStore)
+    }
     val visibleSelection = selectedPackages.intersect(visibleApps.map(InstalledApp::packageName).toSet())
     val ownPackage = androidx.compose.ui.platform.LocalContext.current.packageName
 
@@ -216,7 +236,7 @@ private fun InventoryContent(
                         InventoryFilter.entries.forEach { option ->
                             FilterChip(
                                 selected = filter == option,
-                                onClick = { filter = option },
+                                onClick = { filter = option; saveFilters() },
                                 label = { Text(when (option) {
                                     InventoryFilter.All -> "Todas"
                                     InventoryFilter.User -> "Usuario"
@@ -224,6 +244,12 @@ private fun InventoryContent(
                                 }) },
                             )
                         }
+                    }
+                    Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = hideDisabled, onClick = { hideDisabled = !hideDisabled; saveFilters() },
+                            label = { Text("Ocultar desactivadas") })
+                        FilterChip(selected = hidePlayStore, onClick = { hidePlayStore = !hidePlayStore; saveFilters() },
+                            label = { Text("Ocultar de Play Store") })
                     }
                     Text("${visibleApps.size} visibles · ${selectedPackages.size} seleccionadas (máximo 50)",
                         Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodyMedium)
