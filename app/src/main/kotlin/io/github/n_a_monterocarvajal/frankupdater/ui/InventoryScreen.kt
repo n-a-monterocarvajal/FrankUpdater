@@ -36,6 +36,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.text.font.FontWeight
@@ -328,7 +331,8 @@ private fun InstalledAppCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Checkbox(selected, onCheckedChange = null, enabled = selectionEnabled)
-            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+            AppIcon(app.packageName, Modifier.padding(start = 4.dp).size(36.dp))
+            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(
                     text = app.displayName,
                     style = MaterialTheme.typography.titleMedium,
@@ -354,6 +358,21 @@ private fun InstalledAppCard(
             }
         }
     }
+}
+
+/** Icon loaded off the main thread, only for rows the grid actually composes. */
+@Composable
+private fun AppIcon(packageName: String, modifier: Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val icon by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, packageName) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                context.packageManager.getApplicationIcon(packageName).toBitmap(96, 96).asImageBitmap()
+            }.getOrNull()
+        }
+    }
+    icon?.let { androidx.compose.foundation.Image(it, contentDescription = null, modifier = modifier) }
+        ?: Box(modifier)
 }
 
 @Composable
