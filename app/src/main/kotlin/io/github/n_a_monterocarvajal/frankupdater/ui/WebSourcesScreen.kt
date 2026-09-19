@@ -63,6 +63,7 @@ private object WebSearch {
     val failedSources = mutableStateOf<Set<Source>>(emptySet())
     val variantDetails = mutableStateOf<Map<String, MirrorVariantDetails>>(emptyMap())
     val installedSigners = mutableStateOf<Set<String>>(emptySet())
+    val installedVersion = mutableStateOf<Long?>(null)
 }
 
 @Composable
@@ -94,6 +95,7 @@ internal fun WebSourcesCard(
     var showIncompatible by remember(packageName) { mutableStateOf(false) }
     var variantDetails by WebSearch.variantDetails
     var installedSigners by WebSearch.installedSigners
+    var installedVersion by WebSearch.installedVersion
     LaunchedEffect(variants, variantDetails, packageName) {
         if (variants.isNotEmpty()) onEntries(variants.mapNotNull { it.catalogEntry(packageName, variantDetails[it.url]) })
     }
@@ -188,9 +190,9 @@ internal fun WebSourcesCard(
             val repository = AndroidInstalledAppRepository(context)
             val signers = repository.signers(requested)
             installedSigners = signers
+            installedVersion = repository.versionCode(requested)
             val lookup = runInterruptible(Dispatchers.IO) {
-                lookupSources(client, requested, requireNotNull(device).sdk, signers, mirrorApps[requested],
-                    repository.versionCode(requested))
+                lookupSources(client, requested, requireNotNull(device).sdk, signers, mirrorApps[requested], installedVersion)
             }
             mirrorApps.remember(requested, lookup)
             failedSources = lookup.failedSources
@@ -324,8 +326,16 @@ internal fun WebSourcesCard(
                         artifact.signerDigests.any(installedSigners::contains) -> "firma coincide con la instalada"
                         else -> "firma sin confirmar hasta descargar"
                     }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    val installed = installedVersion
                     if (assessment.incompatibilities.isNotEmpty()) {
                         Text("No compatible: " + assessment.incompatibilities.joinToString { it.label }, color = MaterialTheme.colorScheme.error)
+                    }
+                    // Android refuses downgrades and verification rejects them: say so instead of offering the download.
+                    else if (installed != null && artifact.versionCode < installed) {
+                        Text("Inferior a la versión instalada", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    else if (installed != null && artifact.versionCode == installed) {
+                        Text("Es la versión instalada", color = MaterialTheme.colorScheme.primary)
                     }
                     else if (assessment.channelAllowed) Row {
                         if (artifact.source != Source.GooglePlay && artifact.downloadMode != DownloadMode.Unavailable) TextButton(enabled = !busy, onClick = {
