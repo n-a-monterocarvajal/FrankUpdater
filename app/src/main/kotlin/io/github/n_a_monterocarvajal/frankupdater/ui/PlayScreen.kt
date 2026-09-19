@@ -160,6 +160,9 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                             message = "Acceso anónimo conectado."
                         }
                     }) { Text("Conectar") }
+                    // Result of connecting shown next to the buttons, not at the end of the screen (F-52).
+                    if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    if (message.isNotBlank()) UiStatus(message)
                 } else {
                     TextButton(enabled = !busy, onClick = { provider = null; results = emptyList(); selected = null }) {
                         Text("Desconectar")
@@ -184,8 +187,8 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                 }) { Text("Buscar") }
             }
         }
-        if (busy) item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
-        if (message.isNotBlank()) item { UiStatus(message) }
+        if (provider != null && busy) item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
+        if (provider != null && message.isNotBlank()) item { UiStatus(message) }
         selected?.let { app ->
             item {
                 UiSection(title = app.displayName, supporting = "Detalle y descarga") {
