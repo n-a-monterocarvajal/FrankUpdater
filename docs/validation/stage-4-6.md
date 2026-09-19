@@ -2,7 +2,7 @@
 
 Continuación desde `058dfb3`, descendiente de `8afd186`, en
 `codex/version-catalog`. El catálogo quedó registrado en `05c50fb`.
-El usuario autorizó continuar pese al HTTP 403 del acceso anónimo de Aurora.
+El usuario autorizó continuar pese al HTTP 403 del acceso anónimo.
 No se ha repetido esa solicitud ni se ha cerrado su validación pendiente.
 
 ## Implementación

@@ -55,7 +55,7 @@ pasada solo comprueba la nueva dependencia y la pantalla inicial en la API míni
 
 ## Pendiente para cerrar la etapa
 
-El usuario autorizó posteriormente usar `https://auroraoss.com/api/auth` de forma
+El usuario autorizó posteriormente usar un servidor de terceros de forma
 voluntaria para la prueba real. La aplicación mantiene el campo vacío por defecto.
 El procedimiento opt-in está en [prueba real de Play](play-live-test.md).
 El intento real en API 23 recibió HTTP 403 durante el acceso anónimo; una consulta
@@ -67,5 +67,5 @@ go operativo condicionado a esa demostración.
 
 Los resultados de las etapas 1 y 2 se conservan y no se presentan como repetidos.
 La restricción inicial de no abrir la etapa 4 fue sustituida por autorización
-posterior del usuario para continuar. El rechazo de Aurora sigue pendiente;
+posterior del usuario para continuar. El rechazo de ese servidor sigue pendiente;
 ver [avance de etapas 4 a 6](stage-4-6.md).

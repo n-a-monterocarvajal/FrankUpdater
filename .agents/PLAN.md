@@ -104,9 +104,9 @@ Las pruebas visuales en emulador complementan, pero no sustituyen, los tests aut
 - Base correcta: `8afd186`, etapas 1 y 2 cerradas. `main` estaba retrasado.
 - No repetir la implementación de `codex/local-inventory` (`60531f6`). Su trabajo pendiente quedó en el stash `recovery: duplicated stage 2 before resuming 8afd186`.
 - Rescate selectivo registrado en `179779b`; 42 pruebas JVM aprobadas. Ver `../docs/validation/branch-reconciliation.md`.
-- Etapa 3: GPlayApi 3.6.4, contrato anónimo de Aurora, búsqueda, detalles, delivery por versión y descarga secuencial con SHA-256, Range y renovación en el siguiente intento.
+- Etapa 3: GPlayApi 3.6.4, contrato de acceso anónimo, búsqueda, detalles, delivery por versión y descarga secuencial con SHA-256, Range y renovación en el siguiente intento.
 - Los APK descargados recorren el pipeline existente y se conservan en biblioteca. No hay instalación automática.
-- El usuario eligió servidor anónimo configurable. El usuario autorizó usar https://auroraoss.com/api/auth voluntariamente para las pruebas. Mantener el campo vacío por defecto y no solicitar sesiones repetidamente.
+- El usuario eligió servidor anónimo configurable, con un User-Agent opcional para el servidor que lo exija. La dirección la pone quien usa la aplicación; no se propone ninguna. Mantener el campo vacío por defecto y no solicitar sesiones repetidamente.
 - Mantener la etapa 3 abierta hasta validar el servicio vivo. No afirmar última versión compatible: pertenece a la etapa 4.
 - Revisar `../docs/adr/0004-google-play-anonymous-provider.md` y `../docs/upstreams/stage-3-sources.md`.
 
@@ -120,9 +120,9 @@ No repetir validaciones en vivo de etapas cerradas por cambios de documentación
 Validación inicial de etapa 3: 51 pruebas JVM sin fallos; lint sin errores y APK debug ensamblado. Una prueba API 23 aprobada en 2,949 s; ver ../docs/validation/stage-3.md. No hay emuladores activos. Servidor Aurora autorizado para probar el flujo real; no cerrar etapa 3 ni avanzar a etapa 4 todavía.
 
 
-Intento real autorizado con Aurora: una prueba API 23 terminó en 1,882 s con HTTP 403 durante acceso anónimo; HEAD al dispensador también devolvió 403 (Cloudflare). Sin nuevas sesiones ni evasión del rechazo. Emulador cerrado. No atribuir causa concreta ni afirmar éxito de búsqueda/descarga. Ver ../docs/validation/play-live-test.md. Etapa 3 abierta hasta que el servicio acepte la solicitud o el usuario elija otro servidor.
+Intento real autorizado contra un servidor de terceros: una prueba API 23 terminó en 1,882 s con HTTP 403 durante acceso anónimo; HEAD al dispensador también devolvió 403 (Cloudflare). Sin nuevas sesiones ni evasión del rechazo. Emulador cerrado. No atribuir causa concreta ni afirmar éxito de búsqueda/descarga. Ver ../docs/validation/play-live-test.md. Etapa 3 abierta hasta que el servicio acepte la solicitud o el usuario elija otro servidor.
 
 
-El usuario autorizó continuar con las siguientes etapas pese al rechazo externo de Aurora. Etapa 4 activa desde 058dfb3, rama codex/version-catalog. La validación real pendiente de etapa 3 queda registrada; esta autorización sustituye la restricción anterior de no avanzar. Priorizar catálogo/selección y fallbacks multifuente con fixtures y pruebas JVM; conservar las comprobaciones en vivo ya válidas.
+El usuario autorizó continuar con las siguientes etapas pese al rechazo externo. Etapa 4 activa desde 058dfb3, rama codex/version-catalog. La validación real pendiente de etapa 3 queda registrada; esta autorización sustituye la restricción anterior de no avanzar. Priorizar catálogo/selección y fallbacks multifuente con fixtures y pruebas JVM; conservar las comprobaciones en vivo ya válidas.
 
 Continuación del 16 de septiembre: catálogo 05c50fb y proveedores web 0f24980, siempre descendientes de 8afd186. Validación: 62 pruebas JVM, lint sin errores, APK ensamblado y una prueba offline API 23 aprobada en 4,776 s. Dos pruebas reales JVM posteriores aprobaron historial/variantes de APKMirror y XAPK de APKPure (6.742.497 bytes, tres APK con hash, identidad y firma verificados para SDK 26). Se corrigió lectura del código separado en .colorLightBlack; regresión y consulta real comprobaron dos códigos. Pruebas de red solo con FRANK_LIVE_WEB=1; se verificó omisión de ambas sin indicador. No repetir descargas ni emuladores sin cambio que lo justifique. No hay emuladores activos. Consultar ../docs/validation/stage-4-6.md para alcance y pendientes: metadata suficiente para última compatible, descarga/fallback real de APKMirror y luego etapas 7–8. No afirmar cierre completo de 4–6.

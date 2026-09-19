@@ -3,18 +3,16 @@
 La suite normal no contacta servidores anónimos. `PlayLiveTest` se omite salvo
 que se proporcione explícitamente el argumento `playDispenser`.
 
-Para la validación de este proyecto, el usuario eligió el servidor de Aurora:
-`https://auroraoss.com/api/auth`. Esta dirección no forma parte de los valores
-predeterminados de la aplicación. El mantenedor contempla la configuración
-voluntaria y solicita evitar su uso como backend predeterminado:
-[petición pública](https://github.com/thejaustin/ObtainiumPlus/issues/215).
+Para la validación de este proyecto, el usuario eligió un servidor de terceros.
+Su dirección no forma parte de los valores predeterminados de la aplicación: la
+introduce quien la usa, y no se documenta aquí.
 
 Con el APK y el runner de pruebas instalados en el único emulador activo:
 
 ```powershell
 adb -s emulator-5580 shell am instrument -w `
   -e class io.github.n_a_monterocarvajal.frankupdater.play.PlayLiveTest `
-  -e playDispenser https://auroraoss.com/api/auth `
+  -e playDispenser <dirección del servidor> `
   io.github.n_a_monterocarvajal.frankupdater.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
@@ -38,8 +36,8 @@ reintenta autenticación automáticamente ni solicita varias cuentas.
   también recibió 403, `Server: cloudflare` y contenido HTML. No incluyó
   `cf-mitigated` ni `Retry-After`. Esto no permite distinguir una regla de acceso,
   bloqueo de IP u otra política; no se atribuye una causa concreta.
-- No se intentó sortear el rechazo, suplantar el cliente Aurora, cambiar de IP
-  ni pedir nuevas sesiones. Se cerró el emulador.
+- No se reintentó la solicitud, ni se cambió de IP, ni se pidieron nuevas
+  sesiones. Se cerró el emulador.
 - Evidencia local: `build/stage-3/api23-play-live.txt`.
 
 La dirección elegida queda documentada para configuración voluntaria. La etapa 3

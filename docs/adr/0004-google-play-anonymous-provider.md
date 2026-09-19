@@ -16,12 +16,12 @@ pulsar Conectar, la pantalla explica que el perfil del dispositivo se envía al
 servidor seleccionado y a Google. Se conserva únicamente la dirección HTTPS; la
 sesión y sus credenciales quedan en memoria y se descartan al salir de Buscar.
 
-El usuario autorizó usar `https://auroraoss.com/api/auth` para la validación de
-desarrollo. También puede introducir esa dirección voluntariamente en Buscar.
-El campo inicial continúa vacío. El mantenedor de Aurora contempla esta elección
-explícita y pide no ofrecer su servidor como backend predeterminado de otros
-proyectos: [petición del 28 de mayo de 2026](https://github.com/thejaustin/ObtainiumPlus/issues/215).
-La disponibilidad del servicio no está garantizada.
+El usuario autorizó usar un servidor de terceros para la validación de
+desarrollo. El campo inicial continúa vacío: la dirección la introduce quien usa
+la aplicación, que decide a qué servidor envía el perfil del dispositivo. Un
+segundo campo opcional permite indicar el User-Agent que ese servidor exija. La
+aplicación no propone ninguna dirección ni garantiza la disponibilidad de un
+servicio ajeno.
 
 El contrato del dispensador sigue `AuthProvider.buildAnonymousAuthData` de Aurora:
 POST JSON de propiedades nativas y respuesta con cadenas `email` y `auth`.
@@ -70,7 +70,7 @@ El spike permite continuar con GPlayApi como dependencia; no acredita todavía
 éxito contra un servidor real. La etapa 3 permanece abierta hasta validar acceso,
 búsqueda, detalles y descarga reales con un servidor configurado por el usuario.
 Las pruebas locales de transporte no equivalen a comprobar disponibilidad de Play.
-El primer intento autorizado con Aurora devolvió HTTP 403; el detalle está en
+El primer intento autorizado contra un servidor de terceros devolvió HTTP 403; el detalle está en
 [la validación voluntaria](../validation/play-live-test.md).
 
 Se muestra la versión ofrecida por Play, no «la última compatible». La selección
