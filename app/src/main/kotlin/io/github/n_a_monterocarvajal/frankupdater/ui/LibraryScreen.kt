@@ -154,12 +154,9 @@ internal fun LibraryRoute(
     val documentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {
         uri -> if (uri != null) import(uri)
     }
-    var permissionReturns by remember { mutableIntStateOf(0) }
-    val permissionSettings = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) {
-        permissionReturns++
-    }
+    // Settings answers at once through a trampoline activity, so the grant is checked on each resume instead.
+    var awaitingPermission by remember { mutableStateOf(false) }
+    val permissionSettings = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
     val legacyInstaller = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         scope.launch {
             handleInstallationEvent(if (result.resultCode == android.app.Activity.RESULT_OK)
@@ -190,7 +187,8 @@ internal fun LibraryRoute(
                     }
                     is InstallRequestResult.PermissionRequired -> {
                         installing = false
-                        installMessage = "Autoriza a FrankUpdater para instalar paquetes."
+                        installMessage = "Autoriza a FrankUpdater para instalar paquetes; al volver, la instalación sigue sola."
+                        awaitingPermission = true
                         permissionSettings.launch(result.settingsIntent)
                     }
                 }
@@ -204,12 +202,15 @@ internal fun LibraryRoute(
     }
 
     // Resume on return from the permission screen when it was granted (F-27).
-    LaunchedEffect(permissionReturns) {
-        if (permissionReturns == 0) return@LaunchedEffect
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        // Resumes may come before the user acts (the settings trampoline), so only a granted permission ends the wait.
         val granted = android.os.Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls()
         val pending = selected
-        if (granted && pending != null) startInstall(pending)
-        else installMessage = "Sin permiso para instalar. Concédelo en Ajustes de Android y pulsa instalar de nuevo."
+        if (awaitingPermission && granted && pending != null) {
+            awaitingPermission = false
+            startInstall(pending)
+        }
+        onPauseOrDispose { }
     }
 
     LaunchedEffect(Unit) {
