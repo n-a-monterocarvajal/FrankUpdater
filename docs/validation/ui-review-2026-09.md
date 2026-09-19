@@ -150,3 +150,35 @@ Nuevo hallazgo durante la corrección:
 | F-36 | Buscar | Flujo | P1 | La descarga vive en el scope de la pantalla: cambiar de pestaña la cancela. | Descarga en un servicio o `WorkManager` en primer plano, con notificación. |
 | F-37 | Actualizaciones | UI | P3 | Tras actualizar Aurora a 76, los resultados siguen mostrando "Instalada: 73". | Recalcular con la versión instalada al mostrar resultados. |
 | F-38 | Buscar | UI | P3 | Tras llegar a "239 MB de 239 MB", la verificación del XAPK tarda unos 4 min sin indicarlo; la barra se queda llena. | Mostrar "Verificando paquete…" al terminar la descarga. |
+| F-39 | General | UI | P2 | La interfaz usa Material 3 base con ajustes propios. No sigue Material 3 Expressive (M3E): formas, tipografía enfatizada, contenedores y componentes nuevos. | Adoptar M3E en líneas generales (tema, formas, tipografía, navegación) y en particular pantalla por pantalla, con los componentes que ya ofrece el BOM `2026.08.00`. |
+| F-40 | Buscar | UI | P2 | La lista de versiones se ve como texto plano: varias líneas seguidas por versión (versión y fuente, canal y firma, estado, "Inferior a la versión instalada", botón), sin separación entre versiones ni jerarquía entre dato principal y secundario. | Cada versión como elemento propio (tarjeta o `ListItem`): versión y fuente como título, ABI y formato como apoyo, canal, firma y estado como chips o insignias, y la acción alineada. Agrupar por versión y marcar visualmente la recomendada. |
+
+## Pendientes
+
+Cola de trabajo. Cada hallazgo abierto de la tabla anterior es un pendiente; aquí se resumen por severidad junto a lo que no es un F-xx.
+
+Hallazgos abiertos:
+
+- **P1:** F-09 (la consulta manual de una app en APKMirror muestra solo 2 releases).
+- **P2:** F-15 (Buscar no busca por nombre), F-17 (sin progreso de la comprobación), F-19/F-25 (la lista de Ajustes duplica la selección del Inventario), F-20 (filtro por defecto "Todas"), F-21 (cabecera del Inventario), F-30 ("Reinstalar" sin estar instalada), F-39 (Material 3 Expressive), F-40 (jerarquía de la lista de versiones).
+- **P3:** F-22, F-23, F-24, F-27, F-28, F-33, F-35.
+- **Condicional:** F-06, pasar las filas de Buscar a elementos de la `LazyColumn` si en un dispositivo real sigue habiendo tirones.
+
+Otros pendientes:
+
+- Revisar la jerarquía lógica y visual del resto de pantallas con el mismo criterio que F-40: dato principal frente a secundario, agrupación y acción principal destacada.
+- Actualizar `last_reviewed_commit` en `UPSTREAMS.yml` para Obtainium (`af286fa`), App Manager (`a6f6628`), Aurora Store (`660670a`) y apksig-android (`c120428`), según `docs/upstreams/review-2026-09.md`.
+- Recorrer los flujos en los AVD `Frank_API23_Phone` y `Frank_API36_Tablet`.
+- Probar la confirmación de instalación por notificación, con el permiso de notificaciones concedido.
+
+Requieren a una persona:
+
+- Validar en un teléfono Samsung las apps de Good Guardians desde APKMirror y la primera actualización con Galaxy Store como instalador registrado.
+- Google Play queda aparcado: requiere cuenta o dispenser.
+- Publicar la rama (push o PR) cuando se decida.
+
+## Decisiones pendientes
+
+Decisiones de producto que el trabajo desatendido no toma. Cada una lleva las opciones y una recomendación.
+
+_Ninguna por ahora._
