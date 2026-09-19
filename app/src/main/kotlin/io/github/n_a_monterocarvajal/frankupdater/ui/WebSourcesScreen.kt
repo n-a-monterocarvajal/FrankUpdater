@@ -64,6 +64,7 @@ private object WebSearch {
     val variantDetails = mutableStateOf<Map<String, MirrorVariantDetails>>(emptyMap())
     val installedSigners = mutableStateOf<Set<String>>(emptySet())
     val installedVersion = mutableStateOf<Long?>(null)
+    val mirrorApps = mutableStateOf<List<MirrorApp>>(emptyList())
 }
 
 @Composable
@@ -96,6 +97,7 @@ internal fun WebSourcesCard(
     var variantDetails by WebSearch.variantDetails
     var installedSigners by WebSearch.installedSigners
     var installedVersion by WebSearch.installedVersion
+    var mirrorApps by WebSearch.mirrorApps
     LaunchedEffect(variants, variantDetails, packageName) {
         if (variants.isNotEmpty()) onEntries(variants.mapNotNull { it.catalogEntry(packageName, variantDetails[it.url]) })
     }
@@ -182,8 +184,9 @@ internal fun WebSourcesCard(
         }
     }
 
-    fun consultPure() {
-        act(Source.ApkPure) {
+    /** Queries every source for [packageName]; also the second step of a name search on APKMirror. */
+    suspend fun lookup() {
+        run {
             requirePackageName(packageName)
             val requested = packageName
             val mirrorApps = MirrorAppStore(context)
@@ -210,6 +213,8 @@ internal fun WebSourcesCard(
             }
         }
     }
+
+    fun consultPure() = act(Source.ApkPure) { lookup() }
 
     // An update result opened this screen: query its history right away instead of asking to retype the package.
     LaunchedEffect(requestedPackage, device) {
@@ -251,10 +256,11 @@ internal fun WebSourcesCard(
             Text("Consultar fuentes", style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(packageName, {
                 packageName = it.take(255); releases = emptyList(); variants = emptyList(); choice = null; failedSources = emptySet()
-            }, label = { Text("Nombre de app instalada o paquete") }, singleLine = true, enabled = !busy,
+                mirrorApps = emptyList()
+            }, label = { Text("Nombre de app o paquete") }, singleLine = true, enabled = !busy,
                 keyboardOptions = literalKeyboard(KeyboardType.Ascii),
                 modifier = Modifier.fillMaxWidth())
-            // Name search covers installed apps (the update use case); web sources are only queried by package.
+            // Name search: installed apps first, then APKMirror for apps that are not installed (D-01).
             val installedApps by produceState(emptyList<Pair<String, String>>()) {
                 value = runCatching { AndroidInstalledAppRepository(context).getInstalledApps() }.getOrDefault(emptyList())
                     .filter { !it.isSystemApp }.map { it.displayName to it.packageName }
@@ -265,13 +271,32 @@ internal fun WebSourcesCard(
                 val matches = remember(query, installedApps) {
                     installedApps.filter { (name, id) -> name.contains(query, true) || id.contains(query, true) }.take(5)
                 }
-                if (matches.isEmpty()) Text("Ninguna app instalada coincide. Escribe el nombre de paquete (por ejemplo org.fossify.math).",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (matches.isNotEmpty()) Text("Instaladas", style = MaterialTheme.typography.labelLarge)
                 matches.forEach { (name, id) ->
                     TextButton(enabled = !busy && device != null, onClick = { packageName = id; consultPure() }) { Text(if (name == id) id else "$name · $id") }
                 }
+                // Apps that are not installed (D-01): find them by name on APKMirror, then query all sources by package.
+                OutlinedButton(enabled = !busy && device != null, onClick = {
+                    act(Source.ApkMirror) {
+                        mirrorApps = runInterruptible(Dispatchers.IO) { searchMirrorApps(client, query) }
+                        if (mirrorApps.isEmpty()) message = "APKMirror no tiene apps con ese nombre. Prueba otro nombre o el paquete."
+                    }
+                }) { Text("Buscar \"$query\" en APKMirror") }
+                if (mirrorApps.isNotEmpty()) Text("En APKMirror", style = MaterialTheme.typography.labelLarge)
+                mirrorApps.forEach { app ->
+                    TextButton(enabled = !busy && device != null, onClick = {
+                        act(Source.ApkMirror) {
+                            val id = runInterruptible(Dispatchers.IO) { mirrorAppPackage(client, app.url) }
+                                ?: throw java.io.IOException("APKMirror no indica el paquete de ${app.name}")
+                            MirrorAppStore(context).remember(id, app.url)
+                            mirrorApps = emptyList()
+                            packageName = id
+                            lookup()
+                        }
+                    }) { Text(listOfNotNull(app.name, app.developer).joinToString(" · ")) }
+                }
             }
-            Button(enabled = !busy && device != null && packageName.isNotBlank(), onClick = ::consultPure) {
+            Button(enabled = !busy && device != null && isPackage, onClick = ::consultPure) {
                 Text("Consultar fuentes")
             }
             OutlinedTextField(mirrorUrl, { mirrorUrl = it.take(2048); releases = emptyList(); variants = emptyList(); choice = null },

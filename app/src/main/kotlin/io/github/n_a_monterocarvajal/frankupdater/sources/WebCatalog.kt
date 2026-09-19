@@ -7,9 +7,13 @@ import io.github.n_a_monterocarvajal.frankupdater.compatibility.ReleaseChannel
 import io.github.n_a_monterocarvajal.frankupdater.model.*
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.jsoup.Jsoup
 
 internal data class WebRelease(val name: String, val url: String)
+
+/** One app from APKMirror's app search: its name, developer and app page. */
+internal data class MirrorApp(val name: String, val developer: String?, val url: String)
 internal data class MirrorVariant(
     val name: String, val architecture: String, val minimumAndroid: String,
     val density: String, val url: String, val type: PackageType, val versionCode: Long?,
@@ -94,6 +98,23 @@ internal object MirrorParser {
         document(html, url).select("h5.appRowTitle a[href*=-release/]").mapNotNull { link ->
             runCatching { WebRelease(link.text(), sourceUrl(link.absUrl("href"), Source.ApkMirror).toString()) }.getOrNull()
         }.filter { it.name.isNotBlank() }.distinctBy { it.url }.take(20)
+
+    /** Apps (not releases) from `?searchtype=app&s=<name>`; the package is on each app page, see [appPackage]. */
+    fun searchApps(html: String, url: String): List<MirrorApp> =
+        document(html, url).select("h5.appRowTitle a[href]").mapNotNull { link ->
+            val page = runCatching { sourceUrl(link.absUrl("href"), Source.ApkMirror) }.getOrNull() ?: return@mapNotNull null
+            // An app page is /apk/<developer>/<app>/; release rows point deeper.
+            if (page.pathSegments.filter { it.isNotEmpty() }.size != 3 || page.encodedPath.contains("-release")) return@mapNotNull null
+            val developer = link.parent()?.parent()?.selectFirst("a.byDeveloper")?.text()?.removePrefix("by ")?.trim()
+            MirrorApp(link.text().trim(), developer?.takeIf { it.isNotEmpty() }, page.toString())
+        }.filter { it.name.isNotEmpty() }.distinctBy { it.url }.take(10)
+
+    /** Package name from an app page's "View on Play Store" link; null for apps that are not on Play. */
+    fun appPackage(html: String, url: String): String? =
+        document(html, url).select("a[href*=play.google.com/store/apps/details]").firstNotNullOfOrNull { link ->
+            link.absUrl("href").toHttpUrlOrNull()?.queryParameter("id")
+                ?.takeIf { id -> runCatching { requirePackageName(id) }.isSuccess }
+        }
 
     /** Release pages from an app's RSS feed (`<app>/feed/`), newest first. The feed is not behind the search challenge. */
     fun feedReleases(xml: String): List<WebRelease> {

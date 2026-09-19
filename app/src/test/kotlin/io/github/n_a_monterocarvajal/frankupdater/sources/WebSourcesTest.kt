@@ -205,6 +205,22 @@ class WebSourcesTest {
         } finally { directory.deleteRecursively() }
     }
 
+    @Test fun `app search keeps app pages with their developer and the app page yields the package`() {
+        // Structure of APKMirror's ?searchtype=app results and app pages (September 2026).
+        val search = """
+            <div class="appRow"><div class="table-row"><div class="table-cell">
+              <h5 title="Firefox Fast &amp; Private Browser" class="appRowTitle"><a class="fontBlack" href="/apk/mozilla/firefox/">Firefox Fast &amp; Private Browser</a></h5>
+              <a href="/apk/mozilla/" class="byDeveloper">by Mozilla</a></div></div></div>
+            <div class="appRow"><div class="table-row"><div class="table-cell">
+              <h5 class="appRowTitle"><a href="/apk/mozilla/firefox/firefox-150-release/">Firefox 150</a></h5></div></div></div>
+        """.trimIndent()
+        val apps = MirrorParser.searchApps(search, "https://www.apkmirror.com/?s=firefox")
+        assertEquals(listOf(MirrorApp("Firefox Fast & Private Browser", "Mozilla", "https://www.apkmirror.com/apk/mozilla/firefox/")), apps)
+        val page = """<a title="View on Play Store" href="https://play.google.com/store/apps/details?id=org.mozilla.firefox">Play</a>"""
+        assertEquals("org.mozilla.firefox", MirrorParser.appPackage(page, apps.single().url))
+        assertEquals(null, MirrorParser.appPackage("<p>Not on Play</p>", apps.single().url))
+    }
+
     private fun fixture(name: String) = requireNotNull(javaClass.getResource("/sources/$name")).readText()
     private fun reply(request: Request, code: Int, body: String = "") = Response.Builder().request(request)
         .protocol(Protocol.HTTP_1_1).code(code).message("fixture").body(body.toResponseBody()).build()

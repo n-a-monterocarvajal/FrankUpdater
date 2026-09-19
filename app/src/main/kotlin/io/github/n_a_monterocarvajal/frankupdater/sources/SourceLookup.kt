@@ -97,6 +97,27 @@ private fun mirrorEntries(client: WebSourceClient, packageName: String, installe
  * APKMirror's Cloudflare answers bursts with HTTP 429 challenges (about a minute). Space HTML requests and,
  * after a 429, stop asking for a while instead of extending the block. Shared by the worker and Search.
  */
+/** Name search for apps that are not installed (D-01): APKMirror apps whose name matches [query]. Blocking. */
+internal fun searchMirrorApps(client: WebSourceClient, query: String): List<MirrorApp> {
+    require(query.isNotBlank() && query.length <= 100)
+    val url = "https://www.apkmirror.com/?post_type=app_release&searchtype=app&s=" +
+        java.net.URLEncoder.encode(query.trim(), "UTF-8")
+    // APKMirror lists matches alphabetically; names that start with the query ("Firefox …" before "FFUpdater") go first.
+    return MirrorParser.searchApps(MirrorPacer.text(client, url), url).sortedBy { !it.name.startsWith(query.trim(), true) }
+}
+
+/**
+ * Package of an APKMirror app page: its Play Store link, or else the package declared by the newest release's
+ * first variant (apps that are not on Play). Blocking; one to three paced requests.
+ */
+internal fun mirrorAppPackage(client: WebSourceClient, appUrl: String): String? {
+    val html = MirrorPacer.text(client, appUrl)
+    MirrorParser.appPackage(html, appUrl)?.let { return it }
+    val release = MirrorParser.releases(html, appUrl).firstOrNull() ?: return null
+    val variant = MirrorParser.variants(MirrorPacer.text(client, release.url), release.url).firstOrNull() ?: return null
+    return MirrorParser.variantDetails(MirrorPacer.text(client, variant.url), variant.url).packageName
+}
+
 private object MirrorPacer {
     private const val SPACING_MS = 1_500L
     private const val BACKOFF_MS = 10 * 60_000L
