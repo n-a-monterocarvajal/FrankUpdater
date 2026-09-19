@@ -158,6 +158,10 @@ Nuevo hallazgo durante la corrección:
 | F-37 | Actualizaciones | UI | P3 | Tras actualizar Aurora a 76, los resultados siguen mostrando "Instalada: 73". | Recalcular con la versión instalada al mostrar resultados. |
 | F-38 | Buscar | UI | P3 | Tras llegar a "239 MB de 239 MB", la verificación del XAPK tarda unos 4 min sin indicarlo; la barra se queda llena. | Mostrar "Verificando paquete…" al terminar la descarga. |
 | F-39 | General | UI | P2 | La interfaz usa Material 3 base con ajustes propios. No sigue Material 3 Expressive (M3E): formas, tipografía enfatizada, contenedores y componentes nuevos. | Adoptar M3E en líneas generales (tema, formas, tipografía, navegación) y en particular pantalla por pantalla, con los componentes que ya ofrece el BOM `2026.08.00`. Condición: la app debe seguir sirviendo en dispositivos antiguos (`minSdk 23`). Solo componentes de Compose que funcionen desde API 23; color dinámico solo en Android 12+, con un esquema estático equivalente por debajo; nada que dependa de APIs recientes sin alternativa (desenfoque o `RenderEffect`, API 31+); movimiento y cambios de forma moderados para no penalizar hardware lento. Cada cambio se verifica también en `Frank_API23_Phone`. |
+| F-41 | Tema | UI | P2 | Tema M3 base (`lightColorScheme()`/`darkColorScheme()` por defecto, morado genérico), sin color dinámico, sin formas ni tipografía propias. | Parte de F-39. Esquema propio de la marca (azul del icono) con color dinámico en Android 12+ y el mismo esquema estático por debajo; `MaterialExpressiveTheme` si la versión de Material 3 lo ofrece desde API 23; formas y tipografía expresivas moderadas. |
+| F-42 | Barra superior y navegación | UI | P2 | La barra "FrankUpdater" ocupa unos 200 px en cada pantalla (más en API 23 con fuente grande). La navegación usa símbolos de texto (↻ ⌕ ▣ ⚙) y etiquetas abreviadas ("Actual.", "Biblio."; F-23). | Parte de F-39. Barra superior compacta o integrada en el contenido; iconos Material Symbols como vectores propios en `res/drawable` (sin dependencias nuevas); etiquetas completas. |
+| F-43 | Inventario | UI | P2 | Tarjetas altas (casilla, nombre, paquete, versión y chips en cuatro líneas): caben 3,5 en API 36. | Parte de F-39. Elementos de lista compactos (`ListItem`: icono o casilla al inicio, nombre como título, paquete y versión como apoyo, chips al final). |
+| F-44 | Biblioteca y Ajustes | UI | P3 | Tarjetas y opciones sin jerarquía clara entre acción principal y secundarias; bloques de texto largos en Ajustes. | Parte de F-39. Se registra; se trabajará tras F-41 a F-43 y F-40. |
 | F-40 | Buscar | UI | P2 | La lista de versiones se ve como texto plano: varias líneas seguidas por versión (versión y fuente, canal y firma, estado, "Inferior a la versión instalada", botón), sin separación entre versiones ni jerarquía entre dato principal y secundario. | Cada versión como elemento propio (tarjeta o `ListItem`): versión y fuente como título, ABI y formato como apoyo, canal, firma y estado como chips o insignias, y la acción alineada. Agrupar por versión y marcar visualmente la recomendada. |
 
 ## Pendientes
@@ -167,15 +171,16 @@ Cola de trabajo. Cada hallazgo abierto de la tabla anterior es un pendiente; aqu
 Hallazgos abiertos:
 
 - **P1:** ninguno.
-- **P2:** F-39 (Material 3 Expressive), F-40 (jerarquía de la lista de versiones).
-- **P3:** F-22, F-23, F-24, F-27, F-28, F-33, F-35.
+- **P2:** F-39 (Material 3 Expressive), dividido en F-41 (tema), F-42 (barra superior y navegación) y F-43 (Inventario); F-40 (jerarquía de la lista de versiones).
+- **P3:** F-22, F-23 (resto: etiquetas de navegación, en F-42), F-24, F-27, F-28, F-33, F-35, F-44.
 - **Condicional:** F-06, pasar las filas de Buscar a elementos de la `LazyColumn` si en un dispositivo real sigue habiendo tirones.
 
 Otros pendientes:
 
 - Revisar la jerarquía lógica y visual del resto de pantallas con el mismo criterio que F-40: dato principal frente a secundario, agrupación y acción principal destacada.
 - Actualizar `last_reviewed_commit` en `UPSTREAMS.yml` para Obtainium (`af286fa`), App Manager (`a6f6628`), Aurora Store (`660670a`) y apksig-android (`c120428`), según `docs/upstreams/review-2026-09.md`.
-- Recorrer los flujos en los AVD `Frank_API23_Phone` y `Frank_API36_Tablet`. Es requisito previo de F-39: sin una base en API 23 no se puede comprobar que M3E no degrada los dispositivos antiguos.
+- Recorrido de referencia en `Frank_API23_Phone` (API 23, 1080×1920, 480 dpi, fuente grande): **hecho**. Las cinco pantallas (Inventario, resultados, Buscar, Biblioteca, Ajustes) se muestran sin errores ni crashes; tras la navegación, `gfxinfo` marca un 55 % de frames lentos (el emulador usa GPU por software, así que sirve solo como comparación relativa antes y después de F-39). La barra superior y los bloques de texto ocupan gran parte de la altura útil (360 dp de ancho).
+- Recorrer los flujos en `Frank_API36_Tablet`.
 - Probar la confirmación de instalación por notificación, con el permiso de notificaciones concedido.
 
 Requieren a una persona:
