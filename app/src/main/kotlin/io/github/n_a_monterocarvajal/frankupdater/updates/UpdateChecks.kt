@@ -84,7 +84,9 @@ class UpdateCheckWorker(context: Context, parameters: WorkerParameters) : Corout
             // ponytail: sequential, up to ~16 requests per package; parallelize per source if 50 packages exceed this.
             withTimeout(20 * 60 * 1000L) {
                 val repository = AndroidInstalledAppRepository(applicationContext)
-                val installed = repository.getInstalledApps().filter { it.packageName in preferences.packages }
+                // FrankUpdater is not distributed by these sources; checking itself only adds a "not found" row.
+                val installed = repository.getInstalledApps()
+                    .filter { it.packageName in preferences.packages && it.packageName != applicationContext.packageName }
                 val device = AndroidGenericDeviceProfileProvider(applicationContext).getDeviceProfile()
                 val client = WebSourceClient()
                 val mirrorApps = MirrorAppStore(applicationContext)

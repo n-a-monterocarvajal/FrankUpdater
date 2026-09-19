@@ -182,6 +182,7 @@ private fun InventoryContent(
     var filter by rememberSaveable { mutableStateOf(InventoryFilter.User) }
     val visibleApps = filterInstalledApps(state.apps, query, filter)
     val visibleSelection = selectedPackages.intersect(visibleApps.map(InstalledApp::packageName).toSet())
+    val ownPackage = androidx.compose.ui.platform.LocalContext.current.packageName
 
     // Summary, search and filters scroll away with the list; the selection actions stay pinned at the bottom.
     Column(modifier = modifier) {
@@ -256,10 +257,10 @@ private fun InventoryContent(
                     onClick = {
                         onSelectedPackagesChange(selectedPackages + visibleApps
                             .map(InstalledApp::packageName)
-                            .filterNot(selectedPackages::contains)
+                            .filterNot { it in selectedPackages || it == ownPackage }
                             .take(50 - selectedPackages.size))
                     },
-                ) { Text("Seleccionar ${visibleApps.size}", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                ) { Text("Seleccionar ${visibleApps.count { it.packageName != ownPackage }}", maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 Button(
                     enabled = visibleSelection.isNotEmpty(),
                     onClick = { onCheckUpdates(visibleSelection) },
