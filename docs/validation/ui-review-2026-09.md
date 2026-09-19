@@ -135,6 +135,7 @@ Instalación con el permiso "Instalar apps desconocidas" concedido:
 
 | F-36 (completo) | Las descargas directas corren en `PackageDownloadWorker` (WorkManager en primer plano, `dataSync`), con notificación de progreso y *Cancelar*; Buscar refleja su progreso y resultado. La web asistida sigue en proceso porque sus cookies no deben guardarse en la base de WorkManager. | Emulador: con la app en segundo plano (pantalla de inicio), el worker descargó y verificó Fossify 1.2.0 y lo rechazó correctamente por *Downgrade* frente a la 1.4.0 instalada. |
 | Actualización automática | Opción por app en los resultados. La comprobación periódica encola descarga e instalación solo para versiones con la firma confirmada. La sesión usa `USER_ACTION_NOT_REQUIRED` (Android 12+, permiso `UPDATE_PACKAGES_WITHOUT_USER_ACTION`): Android no pregunta cuando FrankUpdater es el instalador registrado. Si aún pide confirmación, el receptor muestra una notificación en lugar de abrir una actividad desde segundo plano. La retención sigue la política (*Conservar siempre* guarda; el resto no deja archivo). | Emulador: Obtainium reinstalada 1.6.14 con FrankUpdater como instalador; con la opción activa, la comprobación encontró 1.6.17 en F-Droid (firma leída del APK remoto) y la instaló sin ningún diálogo en unos 90 s (23533 → 23563). |
+| F-30 | La acción de cada paquete conservado se decide con la versión instalada en el momento: "Instalar" (no instalada), "Actualizar" (conservada más nueva), "Reinstalar" (misma versión) o "Anterior a la instalada" (deshabilitado; Android rechaza bajar de versión). | API 36 con Aurora 4.8.4 conservada: "Reinstalar" con 4.8.4 instalada, "Instalar" tras desinstalarla y "Actualizar" con 4.8.1 instalada. API 23: Biblioteca se abre sin errores. Importar una versión inferior a la instalada se sigue rechazando en la verificación (*Downgrade*). |
 | F-21 (+ F-23 parcial) | Resumen del dispositivo, búsqueda, filtros y contador pasan a ser cabecera desplazable de la cuadrícula; "Seleccionar N" y "Comprobar (n)" quedan en una barra fija inferior. "Actualizar" (recargar inventario) pasa a "Recargar", sin chocar con la pestaña Actualizaciones. Las tarjetas siguen siendo altas: se compactarán en el trabajo de F-39 por pantalla. | API 36: al desplazar se ven unas 3,5 tarjetas (antes 2) con la barra visible. API 23 (360 dp): la barra cabe en una línea (una primera versión con el contador en la barra se partía letra a letra y se corrigió). `InventoryScreenTest` correcto en API 23. |
 | F-20 | El Inventario abre con el filtro "Usuario". El test instrumentado lo comprueba: la app de sistema no aparece por defecto y sí tras pulsar "Todas". | `InventoryScreenTest` correcto en API 23 y API 36; en la app, la lista abre con las apps de usuario. |
 | F-19, F-25 | La selección de apps vive solo en Actualizaciones. Ajustes deja de tener el campo de paquetes y muestra un resumen ("N apps elegidas en Actualizaciones · M con actualización automática"). Los textos se corrigen: Ajustes ya no dice "solo APKPure; no se descarga ni instala nada" (falso desde F-18 y la actualización automática), y Actualizaciones remite a su propia selección en vez de a Ajustes. | API 36: "7 apps elegidas · 1 con actualización automática". API 23: "0 apps elegidas · 0 …" y el interruptor se muestran. |
@@ -166,7 +167,7 @@ Cola de trabajo. Cada hallazgo abierto de la tabla anterior es un pendiente; aqu
 Hallazgos abiertos:
 
 - **P1:** ninguno.
-- **P2:** F-30 ("Reinstalar" sin estar instalada), F-39 (Material 3 Expressive), F-40 (jerarquía de la lista de versiones).
+- **P2:** F-39 (Material 3 Expressive), F-40 (jerarquía de la lista de versiones).
 - **P3:** F-22, F-23, F-24, F-27, F-28, F-33, F-35.
 - **Condicional:** F-06, pasar las filas de Buscar a elementos de la `LazyColumn` si en un dispositivo real sigue habiendo tirones.
 
@@ -182,6 +183,8 @@ Requieren a una persona:
 - Validar en un teléfono Samsung las apps de Good Guardians desde APKMirror y la primera actualización con Galaxy Store como instalador registrado.
 - Google Play queda aparcado: requiere cuenta o dispenser.
 - Publicar la rama (push o PR) cuando se decida.
+
+Nota de proceso: `connectedDebugAndroidTest` desinstala la app al terminar y borra sus datos (biblioteca, preferencias, mapeos de APKMirror). En esta sesión se perdieron así los datos de prueba de `emulator-5554`. Los tests instrumentados se ejecutan solo en `emulator-5556` (API 23).
 
 ## Decisiones pendientes
 

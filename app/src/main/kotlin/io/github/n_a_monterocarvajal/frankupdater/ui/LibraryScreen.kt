@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
+import io.github.n_a_monterocarvajal.frankupdater.inventory.AndroidInstalledAppRepository
 import io.github.n_a_monterocarvajal.frankupdater.installer.InstallRequestResult
 import io.github.n_a_monterocarvajal.frankupdater.installer.InstallerRouter
 import io.github.n_a_monterocarvajal.frankupdater.installer.InstallerMode
@@ -464,7 +465,16 @@ private fun RetainedPackageCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(top = 10.dp),
             ) {
-                Button(onClick = onReinstall, enabled = enabled) { Text("Reinstalar") }
+                // Label from the installed version read now, so it stays right after installs and uninstalls.
+                val installed = AndroidInstalledAppRepository(LocalContext.current).versionCode(entry.packageName)
+                Button(onClick = onReinstall, enabled = enabled && (installed == null || entry.versionCode >= installed)) {
+                    Text(when {
+                        installed == null -> "Instalar"
+                        entry.versionCode > installed -> "Actualizar"
+                        entry.versionCode == installed -> "Reinstalar"
+                        else -> "Anterior a la instalada"
+                    })
+                }
                 OutlinedButton(onClick = onShare, enabled = enabled) { Text("Compartir") }
                 TextButton(onClick = onDelete, enabled = enabled) { Text("Eliminar") }
             }
