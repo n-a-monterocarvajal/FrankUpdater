@@ -1,5 +1,7 @@
 package io.github.n_a_monterocarvajal.frankupdater.ui
 
+import io.github.n_a_monterocarvajal.frankupdater.R
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,35 +41,35 @@ internal enum class NavigationDestination(
     val label: String,
     val navigationLabel: String,
     val compactLabel: String,
-    val symbol: String,
+    @param:androidx.annotation.DrawableRes val icon: Int,
     val description: String,
 ) {
     Updates(
         label = "Actualizaciones",
         navigationLabel = "Actualizaciones",
-        compactLabel = "Actual.",
-        symbol = "↻",
+        compactLabel = "Apps",
+        icon = R.drawable.ic_nav_updates,
         description = "Aquí aparecerán las versiones compatibles disponibles.",
     ),
     Search(
         label = "Buscar",
         navigationLabel = "Buscar",
         compactLabel = "Buscar",
-        symbol = "⌕",
+        icon = R.drawable.ic_nav_search,
         description = "La búsqueda multifuente se incorporará tras validar el núcleo local.",
     ),
     Library(
         label = "Biblioteca",
         navigationLabel = "Biblioteca",
-        compactLabel = "Biblio.",
-        symbol = "▣",
+        compactLabel = "Biblioteca",
+        icon = R.drawable.ic_nav_library,
         description = "Los paquetes conservados estarán disponibles para reinstalar o compartir.",
     ),
     Settings(
         label = "Ajustes",
         navigationLabel = "Ajustes",
         compactLabel = "Ajustes",
-        symbol = "⚙",
+        icon = R.drawable.ic_nav_settings,
         description = "Preferencias de fuentes, instalación y retención.",
     ),
 }
@@ -106,7 +108,7 @@ fun FrankUpdaterApp(
                         NavigationRailItem(
                             selected = selectedIndex == index,
                             onClick = { selectedIndex = index },
-                            icon = { Text(destination.symbol, fontSize = 24.sp, lineHeight = 24.sp) },
+                            icon = { androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(destination.icon), contentDescription = null) },
                             label = {
                                 Text(
                                     text = destination.compactLabel,
@@ -141,7 +143,7 @@ fun FrankUpdaterApp(
                             NavigationBarItem(
                                 selected = selectedIndex == index,
                                 onClick = { selectedIndex = index },
-                            icon = { Text(destination.symbol, fontSize = 24.sp, lineHeight = 24.sp) },
+                            icon = { androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(destination.icon), contentDescription = null) },
                                 label = {
                                     Text(
                                         text = destination.compactLabel,
@@ -194,9 +196,9 @@ private fun DestinationContent(
         ) {
             Text(
                 text = "FrankUpdater",
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 18.dp),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
             )
         }
         when (destination) {
