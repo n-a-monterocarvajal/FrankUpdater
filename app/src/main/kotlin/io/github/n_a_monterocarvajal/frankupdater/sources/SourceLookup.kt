@@ -56,7 +56,7 @@ internal fun lookupSources(client: WebSourceClient, packageName: String, deviceS
 /**
  * Newest stable APKMirror release whose variants carry this package and, when known, the installed signer.
  * The same package can have several APKMirror apps (e.g. GitHub and F-Droid builds with different keys).
- * Site search sits behind a Cloudflare challenge, so it runs once per package; afterwards the remembered
+ * Site search is the most rate-limited endpoint, so it runs once per package; afterwards the remembered
  * app's RSS feed lists releases. Returns the entries and the app page to remember.
  * ponytail: up to 2 releases x 3 variant pages per package; paginate only if newest releases stop matching.
  */

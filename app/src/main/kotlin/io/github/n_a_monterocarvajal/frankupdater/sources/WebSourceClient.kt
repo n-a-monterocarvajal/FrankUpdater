@@ -104,7 +104,7 @@ internal class WebSourceClient(client: OkHttpClient = OkHttpClient()) {
         resumeFrom: Long = 0): Response {
         var current = sourceUrl(url, source, download)
         repeat(6) { attempt ->
-            val request = Request.Builder().url(current).header("User-Agent", "FrankUpdater/0.1").apply {
+            val request = Request.Builder().url(current).header("User-Agent", userAgent(source)).apply {
                 // Provider-specific metadata headers are never forwarded to a redirect destination.
                 if (attempt == 0) headers.forEach { (name, value) -> header(name, value) }
                 // Range is not provider metadata: the CDN at the end of the redirect chain must see it.
@@ -133,3 +133,10 @@ internal class WebSourceClient(client: OkHttpClient = OkHttpClient()) {
 }
 
 private class NotResumable : IOException("La fuente no permite reanudar la descarga.")
+
+/**
+ * APKMirror's Cloudflare rule challenges HTML (notably search) unless the User-Agent contains `APKUpdater`; the
+ * RSS feed is exempt. Obtainium adopted the same token at af286fa; our own identity stays appended.
+ */
+internal fun userAgent(source: Source): String =
+    if (source == Source.ApkMirror) "APKUpdater-v3.5.9 FrankUpdater/0.1" else "FrankUpdater/0.1"
