@@ -195,11 +195,19 @@ internal fun WebSourcesCard(
                 lookupSources(client, requested, requireNotNull(device).sdk, signers, mirrorApps[requested], installedVersion)
             }
             mirrorApps.remember(requested, lookup)
+            lookup.failures.forEach { (source, reason) -> Log.w("FrankUpdater", "$requested @ $source: $reason") }
             failedSources = lookup.failedSources
             onEntries(lookup.entries)
-            message = if (lookup.entries.isEmpty()) "Ninguna fuente tiene este paquete con una firma compatible."
-                else "Fuentes consultadas: " + lookup.entries.map { it.artifact.source.label }.distinct().joinToString() +
+            val failed = lookup.failedSources.joinToString { it.label }
+            message = when {
+                lookup.entries.isEmpty() && lookup.failedSources.size == 4 ->
+                    "No se pudo consultar ninguna fuente ($failed). Comprueba la conexión."
+                lookup.entries.isEmpty() -> "Ninguna fuente tiene este paquete con una firma compatible." +
+                    if (failed.isNotEmpty()) " Sin respuesta: $failed." else ""
+                else -> "Fuentes consultadas: " + lookup.entries.map { it.artifact.source.label }.distinct().joinToString() +
+                    (if (failed.isNotEmpty()) ". Sin respuesta: $failed" else "") +
                     ". Revisa versión y variante antes de descargar."
+            }
         }
     }
 
@@ -329,42 +337,84 @@ internal fun WebSourcesCard(
                     }
                 }
                 val rows = if (showIncompatible) compatible + incompatible else compatible
+                val installed = installedVersion
+                // The version to pick: newest compatible, allowed channel, above the installed one.
+                val recommended = rows.firstOrNull { row ->
+                    row.incompatibilities.isEmpty() && row.channelAllowed &&
+                        row.entry.artifact.versionCode == selection.latestCompatibleVersionCode &&
+                        (installed == null || row.entry.artifact.versionCode > installed)
+                }
                 rows.take(shown).forEach { assessment ->
                     val artifact = assessment.entry.artifact
-                    Text("${artifact.versionName.orEmpty()} (${artifact.versionCode}) · ${artifact.source.label} · " +
-                        "${artifact.abis.ifEmpty { listOf("todas las ABI") }.joinToString()} · ${artifact.packageType.label}",
-                        style = MaterialTheme.typography.titleSmall)
-                    Text(when (assessment.entry.channel) {
-                        ReleaseChannel.Preview -> "Canal preliminar"
-                        ReleaseChannel.Stable -> "Canal estable"
-                        ReleaseChannel.Unknown -> "Canal no confirmado"
-                    } + " · " + when {
-                        installedSigners.isEmpty() -> "app no instalada"
-                        artifact.signerDigests.any(installedSigners::contains) -> "firma coincide con la instalada"
-                        else -> "firma sin confirmar hasta descargar"
-                    }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    val installed = installedVersion
-                    if (assessment.incompatibilities.isNotEmpty()) {
-                        Text("No compatible: " + assessment.incompatibilities.joinToString { it.label }, color = MaterialTheme.colorScheme.error)
+                    val isRecommended = assessment === recommended
+                    val signer = when {
+                        installedSigners.isEmpty() -> null
+                        artifact.signerDigests.any(installedSigners::contains) -> true
+                        else -> false
                     }
-                    // Android refuses downgrades and verification rejects them: say so instead of offering the download.
-                    else if (installed != null && artifact.versionCode < installed) {
-                        Text("Inferior a la versión instalada", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    else if (installed != null && artifact.versionCode == installed) {
-                        Text("Es la versión instalada", color = MaterialTheme.colorScheme.primary)
-                    }
-                    else if (assessment.channelAllowed) Row {
-                        if (artifact.source != Source.GooglePlay && artifact.downloadMode != DownloadMode.Unavailable) TextButton(enabled = !busy, onClick = {
-                            select(WebChoice(packageName, artifact.versionCode, artifact.source, artifact.packageType,
-                                requireNotNull(artifact.metadataUrl),
-                                artifact.artifacts.firstOrNull()?.uri?.takeIf { artifact.downloadMode == DownloadMode.Direct },
-                                artifact.artifacts.firstOrNull()?.sha256, artifact.artifacts.firstOrNull()?.sizeBytes,
-                                assessment.entry.channel))
-                        }) { Text("Elegir esta variante") }
-                        if (playConnected) TextButton(enabled = !busy, onClick = {
-                            onPlayVersion(packageName, artifact.versionCode)
-                        }) { Text("Solicitar primero en Play") }
+                    OutlinedCard(
+                        colors = if (isRecommended) CardDefaults.outlinedCardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer) else CardDefaults.outlinedCardColors(),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(artifact.versionName ?: artifact.versionCode.toString(),
+                                        style = MaterialTheme.typography.titleMedium)
+                                    Text("código ${artifact.versionCode} · ${artifact.source.label}",
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if (isRecommended) StatusBadge("Recomendada", MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.onPrimary)
+                            }
+                            Text("${artifact.abis.ifEmpty { listOf("todas las ABI") }.joinToString()} · ${artifact.packageType.label}",
+                                style = MaterialTheme.typography.bodyMedium)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                val neutral = MaterialTheme.colorScheme.surfaceVariant
+                                val onNeutral = MaterialTheme.colorScheme.onSurfaceVariant
+                                StatusBadge(when (assessment.entry.channel) {
+                                    ReleaseChannel.Preview -> "Preliminar"
+                                    ReleaseChannel.Stable -> "Estable"
+                                    ReleaseChannel.Unknown -> "Canal sin confirmar"
+                                }, neutral, onNeutral)
+                                when (signer) {
+                                    true -> StatusBadge("Firma coincide", MaterialTheme.colorScheme.secondaryContainer,
+                                        MaterialTheme.colorScheme.onSecondaryContainer)
+                                    false -> StatusBadge("Firma sin confirmar", neutral, onNeutral)
+                                    null -> {}
+                                }
+                                when {
+                                    assessment.incompatibilities.isNotEmpty() -> StatusBadge(
+                                        "No compatible: " + assessment.incompatibilities.joinToString { it.label },
+                                        MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+                                    installed != null && artifact.versionCode < installed ->
+                                        StatusBadge("Inferior a la instalada", neutral, onNeutral)
+                                    installed != null && artifact.versionCode == installed -> StatusBadge("Instalada",
+                                        MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
+                                }
+                            }
+                            // Android refuses downgrades and verification rejects them, so only newer versions get actions.
+                            val actionable = assessment.incompatibilities.isEmpty() && assessment.channelAllowed &&
+                                (installed == null || artifact.versionCode > installed)
+                            if (actionable) Row(Modifier.align(androidx.compose.ui.Alignment.End),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (playConnected) TextButton(enabled = !busy, onClick = {
+                                    onPlayVersion(packageName, artifact.versionCode)
+                                }) { Text("Pedir a Play") }
+                                if (artifact.source != Source.GooglePlay && artifact.downloadMode != DownloadMode.Unavailable) {
+                                    val choose = {
+                                        select(WebChoice(packageName, artifact.versionCode, artifact.source, artifact.packageType,
+                                            requireNotNull(artifact.metadataUrl),
+                                            artifact.artifacts.firstOrNull()?.uri?.takeIf { artifact.downloadMode == DownloadMode.Direct },
+                                            artifact.artifacts.firstOrNull()?.sha256, artifact.artifacts.firstOrNull()?.sizeBytes,
+                                            assessment.entry.channel))
+                                    }
+                                    if (isRecommended) Button(enabled = !busy, onClick = choose) { Text("Elegir") }
+                                    else OutlinedButton(enabled = !busy, onClick = choose) { Text("Elegir") }
+                                }
+                            }
+                        }
                     }
                 }
                 if (rows.size > shown) TextButton(onClick = { shown += 20 }) { Text("Mostrar más versiones") }
@@ -444,4 +494,11 @@ private val IncompatibilityReason.label: String get() = when (this) {
     IncompatibilityReason.TargetSdk -> "targetSdk demasiado antiguo para instalarse"
     IncompatibilityReason.Abi -> "arquitectura no compatible"
     IncompatibilityReason.RequiredFeature -> "falta una función de hardware requerida"
+}
+
+@Composable
+private fun StatusBadge(text: String, container: androidx.compose.ui.graphics.Color, content: androidx.compose.ui.graphics.Color) {
+    Surface(color = container, contentColor = content, shape = MaterialTheme.shapes.small) {
+        Text(text, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+    }
 }
