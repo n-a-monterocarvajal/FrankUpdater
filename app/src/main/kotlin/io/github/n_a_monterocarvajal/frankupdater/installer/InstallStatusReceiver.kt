@@ -61,7 +61,7 @@ class InstallStatusReceiver : BroadcastReceiver() {
                     InstallationEvents.emit(InstallationEvent.AwaitingConfirmation(sessionId))
                     confirmation.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     // Background installs cannot start activities; the user confirms from a notification instead.
-                    if (intent.getBooleanExtra(EXTRA_BACKGROUND, false)) notifyConfirmation(context, sessionId, confirmation)
+                    if (intent.getBooleanExtra(EXTRA_BACKGROUND, false)) notifyConfirmation(context, intent, sessionId, confirmation)
                     else context.startActivity(confirmation)
                 }
             }
@@ -82,17 +82,23 @@ class InstallStatusReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun notifyConfirmation(context: Context, sessionId: Int, confirmation: Intent) {
+    private fun notifyConfirmation(context: Context, intent: Intent, sessionId: Int, confirmation: Intent) {
         if (android.os.Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(context,
                 android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
         val manager = context.getSystemService(android.app.NotificationManager::class.java)
         if (android.os.Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(
             android.app.NotificationChannel("installs", "Instalaciones", android.app.NotificationManager.IMPORTANCE_DEFAULT))
+        // Name the app (F-47): the session knows the package; the installed label reads better when there is one.
+        val packageName = runCatching { context.packageManager.packageInstaller.getSessionInfo(sessionId)?.appPackageName }
+            .getOrNull() ?: intent.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME)
+        val label = packageName?.let { name -> runCatching { context.packageManager.getApplicationLabel(
+            context.packageManager.getApplicationInfo(name, 0)).toString() }.getOrNull() ?: name }
         val pending = android.app.PendingIntent.getActivity(context, sessionId, confirmation,
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
         manager.notify(sessionId, androidx.core.app.NotificationCompat.Builder(context, "installs")
             .setSmallIcon(io.github.n_a_monterocarvajal.frankupdater.R.drawable.ic_launcher)
-            .setContentTitle("Actualización lista para instalar").setContentText("Toca para confirmar la instalación.")
+            .setContentTitle(label?.let { "$it lista para instalar" } ?: "Actualización lista para instalar")
+            .setContentText("Toca para confirmar la instalación.")
             .setContentIntent(pending).setAutoCancel(true).build())
     }
 
