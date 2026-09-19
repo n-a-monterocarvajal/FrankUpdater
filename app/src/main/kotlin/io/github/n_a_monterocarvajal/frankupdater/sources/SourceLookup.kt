@@ -17,7 +17,7 @@ internal class SourceLookup(val entries: List<CatalogEntry>, val failures: Map<S
  * Entries whose published signer differs from the installed one are dropped: they could never update the app.
  */
 internal fun lookupSources(client: WebSourceClient, packageName: String, deviceSdk: Int,
-    installedSigners: Set<String>, knownMirrorApp: String? = null): SourceLookup {
+    installedSigners: Set<String>, knownMirrorApp: String? = null, installedVersionCode: Long? = null): SourceLookup {
     requirePackageName(packageName)
     val entries = mutableListOf<CatalogEntry>()
     val failed = mutableMapOf<Source, String>()
@@ -38,8 +38,18 @@ internal fun lookupSources(client: WebSourceClient, packageName: String, deviceS
         if (Regex("\"version_list\"\\s*:\\s*\\[\\s*]").containsMatchIn(json)) emptyList() else PureParser.history(json, packageName)
     }
     for (repository in listOf(Source.FDroid, Source.IzzyOnDroid)) query(repository) {
-        FdroidParser.history(client.text("${FdroidParser.repo(repository)}/api/v1/packages/$packageName", repository),
+        val history = FdroidParser.history(client.text("${FdroidParser.repo(repository)}/api/v1/packages/$packageName", repository),
             packageName, repository)
+        // These repositories publish no signer: read it from the newest candidate APKs so a build signed with
+        // another key (e.g. a developer build on IzzyOnDroid for an F-Droid-signed install) is not offered.
+        val probe = history.filter {
+            it.channel != ReleaseChannel.Preview && (installedVersionCode == null || it.artifact.versionCode > installedVersionCode)
+        }.take(2).toSet()
+        if (installedSigners.isEmpty()) history else history.map { entry ->
+            if (entry !in probe) entry
+            else remoteSignerSha256(client, entry.artifact.artifacts.single().uri, repository)
+                ?.let { signer -> entry.copy(artifact = entry.artifact.copy(signerDigests = setOf(signer))) } ?: entry
+        }
     }
     var mirrorApp = knownMirrorApp
     query(Source.ApkMirror) {

@@ -61,6 +61,13 @@ class AndroidInstalledAppRepository(
         signingCertificates(packageManager.getPackageInfo(packageName, flags)).flatMap { listOf(it.sha256Hex(), it.sha1Hex()) }.toSet()
     }.getOrDefault(emptySet())
 
+    /** Installed versionCode, or null when the package is not installed. */
+    @Suppress("DEPRECATION")
+    fun versionCode(packageName: String): Long? = runCatching {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else info.versionCode.toLong()
+    }.getOrNull()
+
     @Suppress("DEPRECATION")
     private fun toInstalledApp(packageInfo: PackageInfo): InstalledApp {
         val applicationInfo = packageInfo.applicationInfo

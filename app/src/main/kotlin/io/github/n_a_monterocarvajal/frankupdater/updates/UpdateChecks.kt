@@ -85,7 +85,7 @@ class UpdateCheckWorker(context: Context, parameters: WorkerParameters) : Corout
                     try {
                         val signers = repository.signers(app.packageName)
                         val lookup = runInterruptible(Dispatchers.IO) {
-                            lookupSources(client, app.packageName, device.sdk, signers, mirrorApps[app.packageName])
+                            lookupSources(client, app.packageName, device.sdk, signers, mirrorApps[app.packageName], app.versionCode)
                         }
                         mirrorApps.remember(app.packageName, lookup)
                         lookup.failures.forEach { (source, reason) -> Log.w("FrankUpdater", "${app.packageName} @ $source: $reason") }

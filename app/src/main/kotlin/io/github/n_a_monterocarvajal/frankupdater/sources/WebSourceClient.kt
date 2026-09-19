@@ -32,6 +32,28 @@ internal class WebSourceClient(client: OkHttpClient = OkHttpClient()) {
             output.toString("UTF-8")
         }
 
+    /**
+     * One HTTP range (`bytes=a-b` or `bytes=-n`) with the file offset it starts at; only a real partial
+     * response (206 with Content-Range) is accepted.
+     */
+    fun range(url: String, source: Source, range: String, limit: Int): Pair<Long, ByteArray> =
+        response(url, source, true, range = range).use { response ->
+            val start = Regex("bytes (\\d+)-\\d+/\\d+").find(response.header("Content-Range").orEmpty())
+                ?.groupValues?.get(1)?.toLongOrNull()
+            if (response.code != 206 || start == null) throw IOException("La fuente no admite lecturas parciales.")
+            val output = ByteArrayOutputStream()
+            response.body.byteStream().use { input ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    require(output.size() <= limit - count)
+                    output.write(buffer, 0, count)
+                }
+            }
+            start to output.toByteArray()
+        }
+
     fun download(url: String, source: Source, destination: File, headers: Map<String, String> = emptyMap(),
         expectedSha256: String? = null, expectedSize: Long? = null,
         onProgress: (bytes: Long, total: Long) -> Unit = { _, _ -> }): File {
@@ -51,7 +73,7 @@ internal class WebSourceClient(client: OkHttpClient = OkHttpClient()) {
             destination.outputStream().use { output ->
                 while (true) {
                     try {
-                        response(url, source, true, headers, resumeFrom = bytes).use { response ->
+                        response(url, source, true, headers, range = if (bytes > 0) "bytes=$bytes-" else null).use { response ->
                             val remaining = response.body.contentLength()
                             if (bytes == 0L) {
                                 require(remaining <= limit)
@@ -101,14 +123,14 @@ internal class WebSourceClient(client: OkHttpClient = OkHttpClient()) {
     }
 
     private fun response(url: String, source: Source, download: Boolean, headers: Map<String, String> = emptyMap(),
-        resumeFrom: Long = 0): Response {
+        range: String? = null): Response {
         var current = sourceUrl(url, source, download)
         repeat(6) { attempt ->
             val request = Request.Builder().url(current).header("User-Agent", userAgent(source)).apply {
                 // Provider-specific metadata headers are never forwarded to a redirect destination.
                 if (attempt == 0) headers.forEach { (name, value) -> header(name, value) }
                 // Range is not provider metadata: the CDN at the end of the redirect chain must see it.
-                if (resumeFrom > 0) header("Range", "bytes=$resumeFrom-")
+                range?.let { header("Range", it) }
             }.build()
             val response = client.newCall(request).apply {
                 if (!download) timeout().timeout(30, TimeUnit.SECONDS)
@@ -120,7 +142,7 @@ internal class WebSourceClient(client: OkHttpClient = OkHttpClient()) {
                     current = sourceUrl(next.toString(), source, download)
                 }
             } else {
-                if (response.code != 200 && !(resumeFrom > 0 && response.code == 206)) {
+                if (response.code != 200 && !(range != null && response.code == 206)) {
                     val code = response.code
                     response.close()
                     throw IOException("La fuente respondió HTTP $code.")

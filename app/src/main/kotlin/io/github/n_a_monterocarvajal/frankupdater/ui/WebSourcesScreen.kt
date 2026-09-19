@@ -178,10 +178,12 @@ internal fun WebSourcesCard(
             requirePackageName(packageName)
             val requested = packageName
             val mirrorApps = MirrorAppStore(context)
-            val signers = AndroidInstalledAppRepository(context).signers(requested)
+            val repository = AndroidInstalledAppRepository(context)
+            val signers = repository.signers(requested)
             installedSigners = signers
             val lookup = runInterruptible(Dispatchers.IO) {
-                lookupSources(client, requested, requireNotNull(device).sdk, signers, mirrorApps[requested])
+                lookupSources(client, requested, requireNotNull(device).sdk, signers, mirrorApps[requested],
+                    repository.versionCode(requested))
             }
             mirrorApps.remember(requested, lookup)
             failedSources = lookup.failedSources
