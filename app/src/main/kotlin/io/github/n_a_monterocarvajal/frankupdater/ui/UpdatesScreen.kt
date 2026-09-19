@@ -29,6 +29,10 @@ internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDev
     var refreshed by remember { mutableIntStateOf(0) }
     var checkRequested by rememberSaveable { mutableStateOf(false) }
     var selectedPackages by remember { mutableStateOf(preferences.packages) }
+    var autoUpdate by remember { mutableStateOf(preferences.autoUpdate) }
+    // Pending installs that Android still wants confirmed are announced by notification.
+    val notifications = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
     fun saveSelection(packages: Set<String>) {
         preferences.packages = packages
         selectedPackages = packages
@@ -74,7 +78,12 @@ internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDev
                     }
                 }
                 items(rows, key = { it.packageName }) { row ->
-                    UpdateResultCard(row) { onOpenPackage(row.packageName) }
+                    UpdateResultCard(row, row.packageName in autoUpdate, onAutoUpdate = { enabled ->
+                        preferences.autoUpdate = if (enabled) preferences.autoUpdate + row.packageName else preferences.autoUpdate - row.packageName
+                        autoUpdate = preferences.autoUpdate
+                        if (enabled && !preferences.enabled) { preferences.enabled = true; UpdateSchedule.configure(context) }
+                        if (enabled && android.os.Build.VERSION.SDK_INT >= 33) notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }) { onOpenPackage(row.packageName) }
                 }
             }
         }
@@ -85,7 +94,7 @@ internal fun UpdatesRoute(repository: InstalledAppRepository, device: GenericDev
 private class InstalledNow(val icon: androidx.compose.ui.graphics.ImageBitmap?, val versionCode: Long?, val versionName: String?)
 
 @Composable
-private fun UpdateResultCard(row: UpdateObservation, onOpen: () -> Unit) {
+private fun UpdateResultCard(row: UpdateObservation, automatic: Boolean, onAutoUpdate: (Boolean) -> Unit, onOpen: () -> Unit) {
     val context = LocalContext.current
     val installed by produceState<InstalledNow?>(null, row.packageName) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -117,6 +126,13 @@ private fun UpdateResultCard(row: UpdateObservation, onOpen: () -> Unit) {
                 if (!upToDate) Text(row.status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (row.available != null && !upToDate) Text("Toca para consultar fuentes, descargar y verificar.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("Actualizar automáticamente", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    Switch(automatic, onCheckedChange = onAutoUpdate)
+                }
+                if (automatic) Text("Se descarga e instala sola cuando hay una versión compatible con la firma confirmada; " +
+                    "comprobación cada 24 h.", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

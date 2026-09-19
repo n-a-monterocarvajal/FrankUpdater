@@ -21,6 +21,7 @@ import io.github.n_a_monterocarvajal.frankupdater.compatibility.ReleaseChannel
 import io.github.n_a_monterocarvajal.frankupdater.compatibility.VersionCatalog
 import io.github.n_a_monterocarvajal.frankupdater.device.AndroidGenericDeviceProfileProvider
 import io.github.n_a_monterocarvajal.frankupdater.inventory.AndroidInstalledAppRepository
+import io.github.n_a_monterocarvajal.frankupdater.model.DownloadMode
 import io.github.n_a_monterocarvajal.frankupdater.sources.MirrorAppStore
 import io.github.n_a_monterocarvajal.frankupdater.sources.label
 import io.github.n_a_monterocarvajal.frankupdater.sources.lookupSources
@@ -43,6 +44,13 @@ class UpdatePreferences(context: Context) {
             require(value.size <= 50) { "Selecciona como máximo 50 paquetes." }
             value.forEach(::requirePackageName)
             preferences.edit().putStringSet("packages", value.toSet()).apply()
+        }
+    /** Packages updated without asking when a signer-confirmed compatible version appears. */
+    var autoUpdate: Set<String>
+        get() = preferences.getStringSet("auto_update", emptySet()).orEmpty().toSet()
+        set(value) {
+            value.forEach(::requirePackageName)
+            preferences.edit().putStringSet("auto_update", value.toSet()).apply()
         }
     internal fun save(rows: List<UpdateObservation>) {
         preferences.edit().putString("observations", Gson().toJson(rows))
@@ -102,6 +110,14 @@ class UpdateCheckWorker(context: Context, parameters: WorkerParameters) : Corout
                             // A source that publishes the installed signer beats a higher version whose signer is unknown:
                             // e.g. IzzyOnDroid's developer build cannot update an F-Droid-signed install.
                             val confirmed = eligible.firstOrNull { it.signerDigests.any(signers::contains) }
+                            // Only a signer-confirmed version is fetched and installed unattended.
+                            if (confirmed != null && app.packageName in preferences.autoUpdate) {
+                                PackageDownloads.enqueue(applicationContext, DownloadRequest(app.packageName, confirmed.versionCode,
+                                    confirmed.source, confirmed.packageType, requireNotNull(confirmed.metadataUrl),
+                                    confirmed.artifacts.firstOrNull()?.uri?.takeIf { confirmed.downloadMode == DownloadMode.Direct },
+                                    confirmed.artifacts.firstOrNull()?.sha256, confirmed.artifacts.firstOrNull()?.sizeBytes,
+                                    install = true))
+                            }
                             val best = confirmed ?: eligible.firstOrNull { it.signerDigests.isEmpty() }
                             UpdateObservation(app.packageName, app.versionCode, best?.versionCode,
                                 when {

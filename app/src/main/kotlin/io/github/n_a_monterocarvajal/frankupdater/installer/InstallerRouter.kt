@@ -43,10 +43,11 @@ class InstallerRouter(context: Context, private val system: SystemSessionInstall
         Shizuku.pingBinder() && !Shizuku.isPreV11() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
     }.getOrDefault(false)
 
-    suspend fun install(verified: VerifiedPackageArchive): InstallRequestResult = installLock.withLock {
+    /** [background]: no activity may be started, so a pending confirmation becomes a notification. */
+    suspend fun install(verified: VerifiedPackageArchive, background: Boolean = false): InstallRequestResult = installLock.withLock {
         val archive = deviceSplits(verified)
         when (selectedInstaller(preferences.mode, shizukuGranted())) {
-            InstallerMode.System, InstallerMode.Automatic -> system.install(archive)
+            InstallerMode.System, InstallerMode.Automatic -> system.install(archive, background)
             InstallerMode.Legacy -> {
                 system.permissionIntent()?.let { return@withLock InstallRequestResult.PermissionRequired(it) }
                 require(archive.apks.size == 1 && archive.apks.single().isBase) { "Legacy no admite splits. Selecciona Sistema." }

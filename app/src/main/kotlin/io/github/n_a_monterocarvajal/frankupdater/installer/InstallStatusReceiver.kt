@@ -60,7 +60,9 @@ class InstallStatusReceiver : BroadcastReceiver() {
                 } else {
                     InstallationEvents.emit(InstallationEvent.AwaitingConfirmation(sessionId))
                     confirmation.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(confirmation)
+                    // Background installs cannot start activities; the user confirms from a notification instead.
+                    if (intent.getBooleanExtra(EXTRA_BACKGROUND, false)) notifyConfirmation(context, sessionId, confirmation)
+                    else context.startActivity(confirmation)
                 }
             }
             PackageInstaller.STATUS_SUCCESS -> InstallationEvents.emit(
@@ -80,7 +82,22 @@ class InstallStatusReceiver : BroadcastReceiver() {
         }
     }
 
+    private fun notifyConfirmation(context: Context, sessionId: Int, confirmation: Intent) {
+        if (android.os.Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(context,
+                android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        val manager = context.getSystemService(android.app.NotificationManager::class.java)
+        if (android.os.Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(
+            android.app.NotificationChannel("installs", "Instalaciones", android.app.NotificationManager.IMPORTANCE_DEFAULT))
+        val pending = android.app.PendingIntent.getActivity(context, sessionId, confirmation,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+        manager.notify(sessionId, androidx.core.app.NotificationCompat.Builder(context, "installs")
+            .setSmallIcon(io.github.n_a_monterocarvajal.frankupdater.R.drawable.ic_launcher)
+            .setContentTitle("Actualización lista para instalar").setContentText("Toca para confirmar la instalación.")
+            .setContentIntent(pending).setAutoCancel(true).build())
+    }
+
     companion object {
+        const val EXTRA_BACKGROUND = "io.github.n_a_monterocarvajal.frankupdater.extra.BACKGROUND"
         const val ACTION_INSTALL_STATUS =
             "io.github.n_a_monterocarvajal.frankupdater.action.INSTALL_STATUS"
     }

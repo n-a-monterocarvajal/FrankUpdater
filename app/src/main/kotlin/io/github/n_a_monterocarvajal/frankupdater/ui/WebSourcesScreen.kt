@@ -27,19 +27,25 @@ import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackageLibrary
 import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackagePipeline
 import io.github.n_a_monterocarvajal.frankupdater.verification.VerificationExpectations
 import io.github.n_a_monterocarvajal.frankupdater.verification.catalogEntry
-import java.io.File
-import java.util.UUID
 import kotlinx.coroutines.*
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import io.github.n_a_monterocarvajal.frankupdater.updates.DownloadRequest
+import io.github.n_a_monterocarvajal.frankupdater.updates.PackageDownloads
+import io.github.n_a_monterocarvajal.frankupdater.updates.withVerifiedDownload
 
 private data class WebChoice(val packageName: String, val versionCode: Long?, val source: Source,
     val type: PackageType, val url: String, val directUrl: String? = null,
     val sha256: String? = null, val sizeBytes: Long? = null,
     val channel: ReleaseChannel = ReleaseChannel.Unknown)
 
+private fun WebChoice.toRequest(expectedCode: Long) =
+    DownloadRequest(packageName, expectedCode, source, type, url, directUrl, sha256, sizeBytes, channel)
+
 /**
- * Search state and running operations outlive the Search tab: switching tabs neither cancels a download nor
- * clears the query. ponytail: process lifetime only; a foreground WorkManager download (with notification) is the
- * upgrade if downloads must survive the app being backgrounded and killed.
+ * Search state and running operations outlive the Search tab: switching tabs neither clears the query nor
+ * cancels a lookup. Direct downloads run in PackageDownloadWorker and survive the app; only assisted web downloads
+ * (captured cookies) stay in this process scope.
  */
 private object WebSearch {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -105,27 +111,12 @@ internal fun WebSourcesCard(
         }
     }
 
-    suspend fun download(selected: WebChoice, expectedCode: Long, capturedUrl: String? = null, headers: Map<String, String> = emptyMap()) {
-        val directory = File(context.cacheDir, "web-download/${UUID.randomUUID()}")
-        val extension = when (selected.type) { PackageType.Apkm -> "apkm"; PackageType.Xapk -> "xapk"; else -> "apk" }
+    /** Assisted web downloads only: their captured URL and cookies must not be persisted by WorkManager. */
+    suspend fun download(selected: WebChoice, expectedCode: Long, capturedUrl: String, headers: Map<String, String>) {
         try {
-            val archive = runInterruptible(Dispatchers.IO) {
-                val url = capturedUrl ?: selected.directUrl ?: run {
-                    val page = MirrorParser.downloadPage(client.text(selected.url, selected.source), selected.url)
-                    MirrorParser.downloadUrl(client.text(page, selected.source), page)
-                }
-                var shownAt = 0L
-                client.download(url, selected.source, File(directory, "download.$extension"), headers, selected.sha256, selected.sizeBytes) {
-                    bytes, total ->
-                    // Throttle state writes: one per 256 KiB is enough for a smooth bar.
-                    if (bytes - shownAt >= 262_144 || bytes == total) { shownAt = bytes; progress = bytes to total }
-                }
-            }
-            progress = null
-            message = "Descarga completa. Verificando paquete…"
-            pipeline.importDownloadedArchive(archive, "${selected.packageName}-$expectedCode.$extension",
-                selected.packageName, expectedCode, selected.url, if (capturedUrl == null) "direct-${selected.source.name}" else "assisted-web").use {
-                prepared ->
+            withVerifiedDownload(context, client, pipeline, selected.toRequest(expectedCode), capturedUrl, headers,
+                onProgress = { bytes, total -> progress = bytes to total },
+                onVerifying = { progress = null; message = "Descarga completa. Verificando paquete…" }) { prepared ->
                 val verifiedEntry = runInterruptible(Dispatchers.IO) {
                     library.retain(prepared)
                     prepared.verified.catalogEntry(selected.source, selected.url, selected.channel)
@@ -133,9 +124,25 @@ internal fun WebSourcesCard(
                 onVerified(verifiedEntry)
             }
             message = "Paquete verificado y guardado en Biblioteca."
-        } finally {
-            progress = null
-            withContext(Dispatchers.IO + NonCancellable) { directory.deleteRecursively() }
+        } finally { progress = null }
+    }
+
+    // Direct downloads run in PackageDownloadWorker; mirror its progress and result here.
+    val backgroundPackage = choice?.packageName
+    LaunchedEffect(backgroundPackage) {
+        val name = backgroundPackage ?: return@LaunchedEffect
+        WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(PackageDownloads.workName(name)).collect { infos ->
+            val info = infos.lastOrNull() ?: return@collect
+            when (info.state) {
+                WorkInfo.State.RUNNING -> if (info.progress.getBoolean("verifying", false)) {
+                    progress = null; message = "Descarga completa. Verificando paquete…"
+                } else info.progress.getLong("bytes", -1).takeIf { it >= 0 }?.let { progress = it to info.progress.getLong("total", -1) }
+                WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> message = "Descarga en cola; continúa aunque cierres la app."
+                WorkInfo.State.SUCCEEDED -> { progress = null; message = info.outputData.getString("message").orEmpty() }
+                WorkInfo.State.FAILED -> { progress = null
+                    message = "No se pudo completar la descarga (${info.outputData.getString("message") ?: "error"})." }
+                WorkInfo.State.CANCELLED -> { progress = null; message = "Operación cancelada." }
+            }
         }
     }
 
@@ -348,10 +355,11 @@ internal fun WebSourcesCard(
                 val expectedCode = code.toLongOrNull()?.takeIf { it > 0 }
                 Button(enabled = !busy && expectedCode != null, onClick = {
                     act(selected.source) {
-                        download(selected, requireNotNull(expectedCode))
+                        PackageDownloads.enqueue(context, selected.toRequest(requireNotNull(expectedCode)))
+                        message = "Descarga iniciada; continúa aunque cierres la app."
                     }
                 }) { Text("Descargar y verificar") }
-                DownloadProgress { job?.cancel() }
+                DownloadProgress { job?.cancel(); PackageDownloads.cancel(context, selected.packageName) }
                 Button(enabled = !busy && expectedCode != null, onClick = {
                     assisted = selected.copy(versionCode = expectedCode)
                 }) { Text("Continuar en web asistida") }

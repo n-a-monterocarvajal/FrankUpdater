@@ -40,7 +40,7 @@ class SystemSessionInstaller(
     private val appContext = context.applicationContext
     private val packageInstaller = appContext.packageManager.packageInstaller
 
-    suspend fun install(packageArchive: VerifiedPackageArchive): InstallRequestResult =
+    suspend fun install(packageArchive: VerifiedPackageArchive, background: Boolean = false): InstallRequestResult =
         withContext(ioDispatcher) {
             permissionIntent()?.let { return@withContext InstallRequestResult.PermissionRequired(it) }
             val sessionParams = buildSessionParams(packageArchive)
@@ -54,7 +54,7 @@ class SystemSessionInstaller(
                     )
                 }
                 writer.write(sessionApks, AndroidInstallSessionHandle(session))
-                session.commit(callbackIntent(sessionId).intentSender)
+                session.commit(callbackIntent(sessionId, background).intentSender)
                 InstallRequestResult.Committed(sessionId)
             } catch (error: Exception) {
                 runCatching { session.abandon() }
@@ -87,19 +87,22 @@ class SystemSessionInstaller(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 setInstallReason(PackageManager.INSTALL_REASON_USER)
             }
+            // Android still asks unless FrankUpdater is the installer of record (and the target SDK rules hold);
+            // then updates proceed without a prompt, which is what automatic updates rely on.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
+                setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 setPackageSource(PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE)
             }
         }
 
-    private fun callbackIntent(sessionId: Int): PendingIntent {
+    private fun callbackIntent(sessionId: Int, background: Boolean): PendingIntent {
         val intent = Intent(appContext, InstallStatusReceiver::class.java).apply {
             action = InstallStatusReceiver.ACTION_INSTALL_STATUS
             setPackage(appContext.packageName)
             putExtra(PackageInstaller.EXTRA_SESSION_ID, sessionId)
+            putExtra(InstallStatusReceiver.EXTRA_BACKGROUND, background)
         }
         val mutability = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             PendingIntent.FLAG_MUTABLE
