@@ -243,9 +243,26 @@ internal fun WebSourcesCard(
             Text("Consultar fuentes", style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(packageName, {
                 packageName = it.take(255); releases = emptyList(); variants = emptyList(); choice = null; failedSources = emptySet()
-            }, label = { Text("Paquete (ejemplo: org.fossify.math)") }, singleLine = true, enabled = !busy,
+            }, label = { Text("Nombre de app instalada o paquete") }, singleLine = true, enabled = !busy,
                 keyboardOptions = literalKeyboard(KeyboardType.Ascii),
                 modifier = Modifier.fillMaxWidth())
+            // Name search covers installed apps (the update use case); web sources are only queried by package.
+            val installedApps by produceState(emptyList<Pair<String, String>>()) {
+                value = runCatching { AndroidInstalledAppRepository(context).getInstalledApps() }.getOrDefault(emptyList())
+                    .filter { !it.isSystemApp }.map { it.displayName to it.packageName }
+            }
+            val query = packageName.trim()
+            val isPackage = remember(query) { runCatching { requirePackageName(query) }.isSuccess }
+            if (!isPackage && query.length >= 2) {
+                val matches = remember(query, installedApps) {
+                    installedApps.filter { (name, id) -> name.contains(query, true) || id.contains(query, true) }.take(5)
+                }
+                if (matches.isEmpty()) Text("Ninguna app instalada coincide. Escribe el nombre de paquete (por ejemplo org.fossify.math).",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                matches.forEach { (name, id) ->
+                    TextButton(enabled = !busy && device != null, onClick = { packageName = id; consultPure() }) { Text(if (name == id) id else "$name · $id") }
+                }
+            }
             Button(enabled = !busy && device != null && packageName.isNotBlank(), onClick = ::consultPure) {
                 Text("Consultar fuentes")
             }
