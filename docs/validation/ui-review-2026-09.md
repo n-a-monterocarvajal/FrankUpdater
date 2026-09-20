@@ -147,6 +147,7 @@ Instalación con el permiso "Instalar apps desconocidas" concedido:
 | F-55 | "Buscar «texto» en la web" consulta APKPure (`v3/search_query_new`, que ya trae el paquete) y APKMirror a la vez. De APKPure se toma el primer resultado no publicitario de cada sección, la regla de `ApkPureRepository.search` de APKUpdater (69b6fcd, GPL-3.0); de ambas fuentes solo quedan los nombres que comparten alguna palabra con lo buscado, y de APKMirror se omiten los que repiten un nombre de APKPure. Si una fuente falla, se muestran los de la otra. | API 23: "zoom workplace" → Zoom Workplace, Zoom Workplace for Chromebook… (sin los juegos populares que APKPure intercala) → `us.zoom.videomeetings` → recomendada 6.1.10.23840 (código 6601100), la última compatible con Android 6; 10 versiones más nuevas quedan como no compatibles. Test unitario (primer resultado por sección, anuncios fuera, filtro por palabras). |
 | F-56 | El error de Google Play incluye el código HTTP ("El servicio respondió HTTP 403") o "sin conexión"; otros detalles no se muestran porque podrían contener URL firmadas. Acceso anónimo tiene un campo "User-Agent (opcional)" que se guarda con la dirección y solo se envía en las peticiones al servidor anónimo (`postAuth`, `getAuth`), nunca a Google Play; admite texto ASCII visible de hasta 256 caracteres. La respuesta del servidor admite `authToken` además de `auth` como nombre del testigo de sesión, y se ignoran los campos que no se usan. | API 23, con un servidor que exige User-Agent: "Acceso anónimo conectado", "Google Play conectado" y una búsqueda de Play con resultados. Tests unitarios: la cabecera va solo a ese servidor, se rechazan caracteres de control y se aceptan ambos nombres del testigo. |
 | F-57 | La búsqueda de Google Play usa `WebSearchHelper` de la dependencia `gplayapi` que ya teníamos, en vez del endpoint nativo; el idioma del dispositivo viaja con la consulta. | API 36: "zoom workplace" devuelve Zoom Workplace (`us.zoom.videomeetings`) primero, seguido de las versiones para Chromebook, Intune, Rooms Controller y TV. Antes salían WhatsApp, ChatGPT y Pinterest. |
+| F-57 (ampliado) | Flujo completo de Google Play probado en API 36: búsqueda, ficha, "Solicitar código 10 en Play", descarga verificada de un paquete con splits (APKS, 3 APK, 8,8 MB) y instalación confirmada de `org.fossify.math` 1.4.0 (10). Pedir un código distinto del ofrecido por Play queda sin comprobar. | Emulador API 36 con servidor anónimo conectado. |
 | F-27 | Al volver del ajuste "Instalar apps desconocidas" con el permiso concedido, la instalación sigue sola. El permiso se comprueba cada vez que la app vuelve a primer plano, no al recibir el resultado: en Android 15+ Ajustes abre una actividad intermedia que responde al instante y la app vuelve a primer plano unos segundos antes de que aparezca el interruptor (por eso el mensaje anterior "Permiso revisado" salía antes de actuar). Si se vuelve sin conceder, la espera continúa. El mensaje previo explica que la instalación sigue sola al volver. | API 36, con el permiso revocado por el usuario: "Reinstalar" en la tarjeta conservada abre el ajuste; tras conceder y volver, "Sesión enviada a Android" y "Aplicación instalada correctamente" sin otro toque. Los dos primeros intentos (comprobar al recibir el resultado y en el primer regreso) fallaron por la actividad intermedia. En API 23 no hay permiso por app. |
 | F-24 | La comprobación ignora el paquete de FrankUpdater y "Seleccionar N" no lo incluye (el contador lo descuenta). | API 36: "Seleccionar 6" con 7 visibles; la comprobación de esas 6 no genera fila para `io.github.n_a_monterocarvajal.frankupdater`. |
 | F-22 | Cada fila del Inventario muestra el icono de la app (36 dp), cargado fuera del hilo principal y solo para las filas que la cuadrícula compone. La selección de overlays queda mitigada por el filtro "Usuario" por defecto (F-20). | API 36: iconos de las 7 apps de usuario. API 23: iconos de sistema en 360 dp. `InventoryScreenTest` correcto en API 23. |
@@ -193,6 +194,8 @@ Nuevo hallazgo durante la corrección:
 | F-55 | Buscar | Flujo | P1 | Galaxy S22 Ultra: "Zoom Workplace" no está en APKMirror, así que la búsqueda por nombre (solo APKMirror) devolvía apps sin relación. | Buscar también en APKPure y descartar resultados que no compartan ninguna palabra con lo buscado. |
 | F-56 | Buscar → Google Play | Flujo | P2 | Galaxy S22 Ultra: el servidor anónimo probado rechaza la conexión (HTTP 403) y el error no decía por qué. Algunos servidores solo atienden a clientes que se identifican con un User-Agent concreto. | Mostrar el código HTTP en el error y permitir indicar un User-Agent opcional para el servidor. |
 | F-57 | Buscar → Google Play | Flujo | P1 | Galaxy S22 Ultra y emuladores: buscar "Zoom" o "Zoom Workplace" en Google Play devuelve apps sin relación (WhatsApp, ChatGPT, Pinterest). El endpoint nativo de búsqueda responde a una sesión anónima con apps populares en vez de coincidencias. | Usar la búsqueda de la tienda web (`WebSearchHelper` de gplayapi, a la que Aurora Store cambió en 660670a), que devuelve los paquetes que coinciden. |
+| F-58 | Buscar → Google Play | Flujo | P2 | La sesión de Play vive en la composición de la pestaña: al ir a otra pestaña y volver, la tarjeta pide conectar de nuevo. La dirección y el User-Agent sí se conservan. | Mantener la sesión mientras la app esté abierta, como ya hace la búsqueda de fuentes web. |
+| F-59 | Buscar → Google Play | UI | P3 | En un teléfono, el estado de la conexión y del resultado queda lejos de los controles: hay que desplazarse para leer "Paquete verificado y guardado" o un error. La ficha de una app aparece por encima de los resultados, no junto al que se tocó. | Estado junto a la acción que lo produce y ficha en su sitio dentro de la lista. |
 | F-44 | Biblioteca y Ajustes | UI | P3 | Tarjetas y opciones sin jerarquía clara entre acción principal y secundarias; bloques de texto largos en Ajustes. | Parte de F-39. Se registra; se trabajará tras F-41 a F-43 y F-40. |
 | F-40 | Buscar | UI | P2 | La lista de versiones se ve como texto plano: varias líneas seguidas por versión (versión y fuente, canal y firma, estado, "Inferior a la versión instalada", botón), sin separación entre versiones ni jerarquía entre dato principal y secundario. | Cada versión como elemento propio (tarjeta o `ListItem`): versión y fuente como título, ABI y formato como apoyo, canal, firma y estado como chips o insignias, y la acción alineada. Agrupar por versión y marcar visualmente la recomendada. |
 
@@ -228,6 +231,62 @@ Requieren a una persona:
 - ~~Publicar la rama~~ **hecho** (19 de septiembre): la rama es ahora `main` en GitHub, en `5bed473`.
 
 Nota de proceso: `connectedDebugAndroidTest` desinstala la app al terminar y borra sus datos (biblioteca, preferencias, mapeos de APKMirror). En esta sesión se perdieron así los datos de prueba de `emulator-5554`. Los tests instrumentados se ejecutan solo en `emulator-5556` (API 23).
+
+## Plan de trabajo (20 de septiembre)
+
+Orden propuesto. Cada punto indica qué lo cierra y dónde se prueba.
+
+### 1. Interfaz: jerarquía pantalla por pantalla (F-44)
+
+La pantalla Buscar es hoy una tarjeta muy larga que mezcla cuatro cosas: consulta por nombre o paquete,
+consulta por URL de APKMirror, resultados y Google Play.
+
+1. **Buscar, parte de fuentes web.** Un solo campo arriba, con el botón principal al lado; lo demás
+   (URL de APKMirror, historial de APKPure, versiones preliminares) pasa a una sección secundaria
+   plegada. Los resultados dejan de compartir tarjeta con los controles.
+2. **Buscar, parte de Google Play.** Conectar pasa a Ajustes o a una hoja propia; en Buscar queda solo
+   la consulta y sus resultados, mezclados con los de las demás fuentes en vez de en dos listas
+   separadas (F-59).
+3. **Biblioteca.** Un paquete por tarjeta con su acción principal destacada; la tarjeta de "Paquete
+   verificado" deja de duplicar la información del paquete conservado.
+4. **Ajustes.** Agrupar por tema (retención, instalación, comprobaciones) y describir cada opción en
+   una línea.
+
+Se prueba en API 23 y API 36, y en la tableta para el ancho. Cada pantalla, un commit.
+
+### 2. Google Play: lo que falta
+
+- Mantener la sesión al cambiar de pestaña (F-58).
+- Ofrecer la búsqueda sin conectar, ya que la búsqueda de la tienda web no necesita sesión; la conexión
+  queda solo para descargar.
+- Comprobar qué contesta Play al pedir un código distinto del ofrecido, y decir en la interfaz qué
+  significa esa respuesta.
+
+### 3. Rendimiento en el dispositivo (F-51, F-06)
+
+Medir en el Galaxy S22 Ultra con el APK de release: carga del inventario, escritura en su buscador y
+desplazamiento de listas largas. Si sigue habiendo tirones, pasar las filas de Buscar a elementos de la
+lista perezosa (F-06) y estudiar activar R8 y un perfil de arranque, que son cambios de compilación.
+
+### 4. Textos a `strings.xml` (F-28, decisión D-03)
+
+A medida que se rehaga cada pantalla del punto 1, sus textos pasan a recursos. Sin pantallas nuevas no
+se toca nada.
+
+### 5. Material 3 expresivo (F-39, decisión D-02)
+
+En espera de la versión 1.5 estable de la biblioteca. Mientras tanto solo se usan formas, tipografía y
+jerarquía con lo estable.
+
+### 6. Fuentes nuevas
+
+Evaluar Aptoide como fuente, con su filtro por versión de Android, antes de decidir si entra. Es una
+decisión de producto: sus apks los suben terceros.
+
+### 7. Validación en dispositivo
+
+Good Guardians de Samsung desde APKMirror en el S22, con Galaxy Store como instalador registrado, y la
+primera actualización automática sobre ese teléfono.
 
 ## Decisiones pendientes
 
