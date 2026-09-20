@@ -219,8 +219,8 @@ Requieren a una persona:
 - ~~F-27~~ **hecho** (19 de septiembre), con el permiso revocado y concedido por el usuario.
 
 - Validar en un teléfono Samsung las apps de Good Guardians desde APKMirror y la primera actualización con Galaxy Store como instalador registrado.
-- Google Play queda aparcado: requiere cuenta o dispenser.
-- Publicar la rama (push o PR) cuando se decida.
+- Google Play: el acceso anónimo funciona con un servidor configurado por el usuario (probado en API 23). Falta probarlo en el S22 y descargar una versión concreta por su código.
+- ~~Publicar la rama~~ **hecho** (19 de septiembre): la rama es ahora `main` en GitHub, en `5bed473`.
 
 Nota de proceso: `connectedDebugAndroidTest` desinstala la app al terminar y borra sus datos (biblioteca, preferencias, mapeos de APKMirror). En esta sesión se perdieron así los datos de prueba de `emulator-5554`. Los tests instrumentados se ejecutan solo en `emulator-5556` (API 23).
 
