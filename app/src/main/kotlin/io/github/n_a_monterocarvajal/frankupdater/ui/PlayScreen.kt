@@ -75,6 +75,8 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
     var results by remember { mutableStateOf<List<App>>(emptyList()) }
     var selected by remember { mutableStateOf<App?>(null) }
     var busy by remember { mutableStateOf(false) }
+    // Package handed from a Play result to the multi-source lookup at the top of the screen.
+    var checkPackage by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf("") }
     var catalogEntries by searchCatalogEntries
     val device by produceState<GenericDeviceProfile?>(null) {
@@ -108,7 +110,8 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            WebSourcesCard(pipeline, library, device, catalogEntries, requestedPackage, onPackageConsumed,
+            WebSourcesCard(pipeline, library, device, catalogEntries, requestedPackage ?: checkPackage,
+                { onPackageConsumed(); checkPackage = null },
                 onEntries = { incoming ->
                     val refreshed = incoming.map { it.artifact.packageName to it.artifact.source }.toSet()
                     catalogEntries = catalogEntries.filterNot {
@@ -220,6 +223,12 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                             Text("Última versión conocida: ${selection.latestKnownVersionCode ?: "Sin datos"}")
                             Text("Última compatible según metadatos: ${selection.latestCompatibleVersionCode ?: "Pendiente de comprobar"}")
                             Text("El catálogo solo incluye versiones consultadas; puede haber publicaciones más recientes.")
+                            // Play alone cannot say which version this device supports (F-60): hand the package to the
+                            // multi-source lookup above, the same path an update result takes.
+                            Button(enabled = !busy, onClick = { checkPackage = app.packageName }) {
+                                Text(if (selection.latestCompatibleVersionCode == null) "Comprobar compatibilidad en todas las fuentes"
+                                    else "Volver a comprobar en todas las fuentes")
+                            }
                             selection.assessments.map { it.entry.artifact.versionCode }.distinct().forEach { code ->
                                 TextButton(enabled = !busy, onClick = { version = code.toString() }) {
                                     Text("Solicitar código $code en Play")
