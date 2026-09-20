@@ -280,8 +280,8 @@ jerarquía con lo estable.
 
 ### 6. Fuentes nuevas
 
-Evaluar Aptoide como fuente, con su filtro por versión de Android, antes de decidir si entra. Es una
-decisión de producto: sus apks los suben terceros.
+Aptoide **descartada** (20 de septiembre): sus paquetes los suben terceros y no aporta frente a las
+cuatro fuentes actuales más Google Play.
 
 ### 7. Validación en dispositivo
 
@@ -315,6 +315,14 @@ En Material 3 1.4.0, el que fija el BOM `2026.08.00`, `MaterialExpressiveTheme`,
 3. **Recrear a mano** algunos patrones expresivos con componentes estables. Da más código propio que mantener y que tirar cuando llegue la versión estable.
 
 Recomendación: 2. Coincide con la vocación de la app (estabilidad en dispositivos antiguos) y no bloquea F-42, F-43 ni F-40.
+
+**Revisión del 20 de septiembre, con datos de Maven:** `androidx.compose.material3` 1.4.0 salió el 24 de
+septiembre de 2025 y no ha tenido ninguna versión de corrección; la línea 1.5.0 lleva desde el 30 de
+julio de 2025 en alfa y va por la alpha28 (9 de septiembre de 2026), sin una sola beta. Esperar la
+estable, por tanto, no tiene fecha. En contra de adoptar la alfa: su POM arrastra
+`androidx.compose.foundation` 1.13.0-alpha01, así que el riesgo no se limita a Material 3, y cada alfa
+puede cambiar su API. Aurora Store, que rehizo su interfaz este año, sigue en el BOM estable
+(`2026.06.01`).
 
 **Decidido (19 de septiembre): opción 2.** Se sigue con Material 3 estable; la parte expresiva de F-39 espera a la 1.5 estable.
 
