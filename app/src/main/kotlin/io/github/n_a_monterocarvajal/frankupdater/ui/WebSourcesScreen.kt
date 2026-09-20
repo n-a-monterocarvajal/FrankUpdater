@@ -7,6 +7,7 @@ import android.text.format.Formatter
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.*
@@ -94,6 +95,7 @@ internal fun WebSourcesCard(
     var assisted by remember { mutableStateOf<WebChoice?>(null) }
     var shown by remember(packageName, releases, variants, entries) { mutableIntStateOf(10) }
     var showIncompatible by remember(packageName) { mutableStateOf(false) }
+    var moreOptions by rememberSaveable { mutableStateOf(false) }
     var variantDetails by WebSearch.variantDetails
     var installedSigners by WebSearch.installedSigners
     var installedVersion by WebSearch.installedVersion
@@ -245,15 +247,16 @@ internal fun WebSourcesCard(
             })
     }
 
+    // Four blocks instead of one long card (F-44): search, advanced options, results, and the download panel.
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Historial y otras fuentes", style = MaterialTheme.typography.titleLarge)
+            Text("Buscar apps", style = MaterialTheme.typography.titleLarge)
             Text(
-                "Consulta APKMirror o APKPure sin iniciar sesión en Play. La consulta comparte el paquete con la fuente elegida.",
+                "Por nombre o por paquete. Se consultan APKPure, APKMirror, F-Droid e IzzyOnDroid, sin iniciar sesión.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text("Consultar fuentes", style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(packageName, {
                 packageName = it.take(255); releases = emptyList(); variants = emptyList(); choice = null; failedSources = emptySet()
                 nameMatches = emptyList()
@@ -276,7 +279,8 @@ internal fun WebSourcesCard(
                     TextButton(enabled = !busy && device != null, onClick = { packageName = id; consultPure() }) { Text(if (name == id) id else "$name · $id") }
                 }
                 // Apps that are not installed (D-01): find them by name on APKPure and APKMirror, then query all sources.
-                OutlinedButton(enabled = !busy && device != null, onClick = {
+                // With a name typed, searching the web is the action; the package button would only sit disabled.
+                Button(enabled = !busy && device != null, onClick = {
                     act(Source.ApkPure) {
                         nameMatches = runInterruptible(Dispatchers.IO) { searchAppsByName(client, query, requireNotNull(device).sdk) }
                         if (nameMatches.isEmpty()) message = "APKPure y APKMirror no tienen apps con ese nombre. Prueba otro nombre o el paquete."
@@ -296,9 +300,21 @@ internal fun WebSourcesCard(
                     }) { Text(listOfNotNull(app.name, app.developer, app.packageName).joinToString(" · ")) }
                 }
             }
-            Button(enabled = !busy && device != null && isPackage, onClick = ::consultPure) {
+            if (isPackage) Button(enabled = !busy && device != null, onClick = ::consultPure) {
                 Text("Consultar fuentes")
             }
+        }
+    }
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Rarely needed, so they start folded: a direct APKMirror page, the APKPure history and previews.
+            Row(Modifier.fillMaxWidth().clickable { moreOptions = !moreOptions },
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Opciones avanzadas", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text(if (moreOptions) "Ocultar" else "Mostrar", style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary)
+            }
+            if (moreOptions) {
             OutlinedTextField(mirrorUrl, { mirrorUrl = it.take(2048); releases = emptyList(); variants = emptyList(); choice = null },
                 label = { Text("Página de aplicación o release en APKMirror") }, singleLine = true, enabled = !busy,
                 keyboardOptions = literalKeyboard(KeyboardType.Uri),
@@ -321,9 +337,18 @@ internal fun WebSourcesCard(
                 try { requirePackageName(packageName); browser("https://apkpure.com/apk/$packageName/versions", Source.ApkPure) }
                 catch (_: Exception) { message = "Introduce un nombre de paquete válido." }
             }) { Text("Abrir historial APKPure en navegador") }
+            device?.let {
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Checkbox(includePreviews, onCheckedChange = { includePreviews = it })
+                    Text("Incluir versiones preliminares (alpha/beta/RC)")
+                }
+            }
+            }
+        }
+    }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (releases.isNotEmpty() || variants.isNotEmpty() || entries.any { it.artifact.packageName == packageName }) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Text("Resultados y compatibilidad", style = MaterialTheme.typography.titleMedium)
+                Text("Versiones encontradas", style = MaterialTheme.typography.titleMedium)
             }
             releases.take(shown).forEach { release ->
                 TextButton(enabled = !busy, onClick = {
@@ -334,10 +359,6 @@ internal fun WebSourcesCard(
                 }) { Text(release.name) }
             }
             device?.let { profile ->
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Checkbox(includePreviews, onCheckedChange = { includePreviews = it })
-                    Text("Incluir versiones preliminares (alpha/beta/RC)")
-                }
                 // Selection is pure but not cheap: recompute only when its inputs change, not on every progress tick.
                 val selection = remember(packageName, entries, profile, failedSources, includePreviews) {
                     VersionCatalog().select(packageName.ifBlank { "unknown.app" },
@@ -447,8 +468,9 @@ internal fun WebSourcesCard(
                     Text(if (showIncompatible) "Ocultar las no compatibles" else "Mostrar ${incompatible.size} no compatibles")
                 }
             }
-            choice?.let { selected -> Column(Modifier.bringIntoViewRequester(panel), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+    }
+    choice?.let { selected -> Card(Modifier.fillMaxWidth().bringIntoViewRequester(panel)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Descargar o importar", style = MaterialTheme.typography.titleMedium)
                 Text("Selección: ${selected.packageName} · ${selected.source.label} · ${selected.type.label}", style = MaterialTheme.typography.bodyMedium)
                 OutlinedTextField(code, { code = it.filter(Char::isDigit).take(19) },
@@ -470,10 +492,10 @@ internal fun WebSourcesCard(
                     pendingImport = selected.copy(versionCode = expectedCode)
                     picker.launch(arrayOf("application/vnd.android.package-archive", "application/octet-stream", "application/zip", "*/*"))
                 }) { Text("Seleccionar archivo descargado") }
-            } }
-            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (message.isNotBlank()) Text(message)
         }
+    } }
+    if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+    if (message.isNotBlank()) Text(message)
     }
 }
 
