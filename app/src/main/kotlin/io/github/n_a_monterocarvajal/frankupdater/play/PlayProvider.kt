@@ -11,7 +11,7 @@ import com.aurora.gplayapi.data.models.PlayFile
 import com.aurora.gplayapi.helpers.AppDetailsHelper
 import com.aurora.gplayapi.helpers.AuthHelper
 import com.aurora.gplayapi.helpers.PurchaseHelper
-import com.aurora.gplayapi.helpers.SearchHelper
+import com.aurora.gplayapi.helpers.web.WebSearchHelper
 import com.aurora.gplayapi.network.IHttpClient
 import com.google.gson.Gson
 import com.google.gson.JsonParser
@@ -23,11 +23,16 @@ import kotlinx.coroutines.runInterruptible
 internal class PlayProvider private constructor(
     private val auth: AuthData,
     private val http: IHttpClient,
+    private val locale: Locale = Locale.getDefault(),
 ) {
+    /**
+     * Play's own store search (`WebSearchHelper`), the one Aurora Store moved to at 660670a: the native
+     * endpoint answers an anonymous session with popular apps instead of matches for the query.
+     */
     suspend fun search(query: String): List<App> = runInterruptible(Dispatchers.IO) {
         require(query.isNotBlank() && query.length <= 200)
-        val bundle = SearchHelper(auth).using(http).searchResults(query.trim(), "")
-        bundle.streamClusters.values.flatMap { it.clusterAppList }.distinctBy { it.packageName }
+        WebSearchHelper().with(locale).using(http).search(query.trim())
+            .clusterAppList.distinctBy { it.packageName }
     }
 
     suspend fun details(packageName: String): App = runInterruptible(Dispatchers.IO) {
@@ -62,7 +67,7 @@ internal class PlayProvider private constructor(
             val auth = synchronized(AuthHelper) {
                 AuthHelper.using(http).build(email, token, AuthHelper.Token.AUTH, true, properties, locale)
             }
-            PlayProvider(auth, http)
+            PlayProvider(auth, http, locale)
         }
 
         suspend fun personal(
@@ -76,7 +81,7 @@ internal class PlayProvider private constructor(
                 AuthHelper.using(http).build(credentials.email, credentials.aasToken,
                     AuthHelper.Token.AAS, false, properties, locale)
             }
-            PlayProvider(auth, http)
+            PlayProvider(auth, http, locale)
         }
 
         fun parseAnonymousResponse(bytes: ByteArray): Pair<String, String> {
