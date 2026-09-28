@@ -25,6 +25,9 @@ import io.github.n_a_monterocarvajal.frankupdater.installer.InstallationEvents
 import io.github.n_a_monterocarvajal.frankupdater.installer.InstallerRouter
 import io.github.n_a_monterocarvajal.frankupdater.model.PackageType
 import io.github.n_a_monterocarvajal.frankupdater.model.Source
+import io.github.n_a_monterocarvajal.frankupdater.play.DeliveryExpiredException
+import io.github.n_a_monterocarvajal.frankupdater.play.PlayDownload
+import io.github.n_a_monterocarvajal.frankupdater.play.PlaySession
 import io.github.n_a_monterocarvajal.frankupdater.sources.MirrorParser
 import io.github.n_a_monterocarvajal.frankupdater.sources.WebSourceClient
 import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackageLibrary
@@ -88,15 +91,47 @@ internal suspend fun <T> withVerifiedDownload(context: Context, client: WebSourc
     }
 }
 
+/**
+ * Play counterpart of [withVerifiedDownload]: asks the connected (or last used) Play session for [DownloadRequest.versionCode].
+ * Parts are kept per package and version until verified, so a dropped download resumes instead of starting over.
+ */
+internal suspend fun <T> withVerifiedPlayDownload(context: Context, request: DownloadRequest,
+    onProgress: (bytes: Long, total: Long) -> Unit, onVerifying: () -> Unit,
+    block: suspend (PreparedPackageImport) -> T): T {
+    val provider = PlaySession.current(context)
+    val files = provider.delivery(provider.details(request.packageName), request.versionCode)
+    check(files.isNotEmpty()) { "Google Play no entregó el código ${request.versionCode} para este dispositivo." }
+    val directory = File(context.cacheDir, "play-download/${request.packageName}-${request.versionCode}")
+    val archive = runInterruptible(Dispatchers.IO) { PlayDownload().download(files, directory, onProgress) }
+    onVerifying()
+    return LocalPackagePipeline(context).importPlayDownload(archive, request.packageName, request.versionCode)
+        .use { block(it) }
+        .also { withContext(Dispatchers.IO) { directory.deleteRecursively() } }
+}
+
+/** Play errors may carry signed URLs or account data: only our own messages reach the screen. */
+private fun playFailure(error: Exception): String = when (error) {
+    is java.net.UnknownHostException -> "Sin conexión."
+    is DeliveryExpiredException, is IllegalArgumentException, is IllegalStateException -> error.message ?: "Google Play rechazó la descarga."
+    else -> "Google Play no respondió como se esperaba."
+}
+
 object PackageDownloads {
     internal fun workName(packageName: String) = "download-$packageName"
 
     internal fun enqueue(context: Context, request: DownloadRequest) {
         WorkManager.getInstance(context).enqueueUniqueWork(workName(request.packageName), ExistingWorkPolicy.KEEP,
+            // Tags let a screen tell this version's run from an older one for the same package.
             OneTimeWorkRequestBuilder<PackageDownloadWorker>().setInputData(request.toData())
+                .addTag(codeTag(request.versionCode)).addTag(sourceTag(request.source))
+                .apply { if (request.install) addTag(INSTALL_TAG) }
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST).build())
     }
+
+    internal const val INSTALL_TAG = "install"
+    internal fun codeTag(versionCode: Long) = "code:$versionCode"
+    internal fun sourceTag(source: Source) = "source:${source.name}"
 
     internal fun cancel(context: Context, packageName: String) =
         WorkManager.getInstance(context).cancelUniqueWork(workName(packageName))
@@ -115,27 +150,39 @@ class PackageDownloadWorker(context: Context, parameters: WorkerParameters) : Co
         val id = request.packageName.hashCode()
         return try {
             setForeground(foreground(id, request.packageName, 0, -1))
-            val message = withVerifiedDownload(applicationContext, WebSourceClient(), LocalPackagePipeline(applicationContext),
-                request, onProgress = { bytes, total ->
-                    setProgressAsync(workDataOf("bytes" to bytes, "total" to total))
-                    notifications.notify(id, progressNotification(request.packageName, bytes, total))
-                }, onVerifying = {
-                    setProgressAsync(workDataOf("verifying" to true))
-                }) { prepared ->
-                if (request.install) install(prepared, request) else {
+            // "stage" drives the step list in Search; "bytes"/"total"/"verifying" stay for the Updates screen.
+            setProgress(workDataOf("stage" to "request"))
+            val onProgress = { bytes: Long, total: Long ->
+                setProgressAsync(workDataOf("stage" to "download", "bytes" to bytes, "total" to total))
+                notifications.notify(id, progressNotification(request.packageName, bytes, total))
+            }
+            val onVerifying = { setProgressAsync(workDataOf("stage" to "verify", "verifying" to true)); Unit }
+            val keep: suspend (PreparedPackageImport) -> String = { prepared ->
+                if (request.install) {
+                    setProgress(workDataOf("stage" to "install", "verifying" to true))
+                    install(prepared, request)
+                } else {
                     runInterruptible(Dispatchers.IO) { LocalPackageLibrary(applicationContext).retain(prepared) }
                     "Paquete verificado y guardado en Biblioteca."
                 }
             }
+            val message = if (request.source == Source.GooglePlay) {
+                withVerifiedPlayDownload(applicationContext, request, onProgress, onVerifying, keep)
+            } else withVerifiedDownload(applicationContext, WebSourceClient(), LocalPackagePipeline(applicationContext),
+                request, onProgress = onProgress, onVerifying = onVerifying, block = keep)
             Result.success(workDataOf("message" to message))
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (error: Exception) {
             Log.w("FrankUpdater", "Background download failed for ${request.packageName}", error)
-            if (request.install) notify(id + 1, "No se pudo actualizar ${request.packageName}",
-                error.message ?: error.javaClass.simpleName, null)
-            Result.failure(workDataOf("message" to (error.message ?: error.javaClass.simpleName)))
+            val reason = if (request.source == Source.GooglePlay) playFailure(error) else error.message ?: error.javaClass.simpleName
+            if (request.install) notify(id + 1, "No se pudo actualizar ${request.packageName}", reason, null)
+            Result.failure(workDataOf("message" to reason))
         }
     }
+
+    // Expedited work runs as a foreground service before Android 12 and asks for this first; the default throws.
+    override suspend fun getForegroundInfo(): ForegroundInfo =
+        DownloadRequest.from(inputData).packageName.let { foreground(it.hashCode(), it, 0, -1) }
 
     private suspend fun install(prepared: PreparedPackageImport, request: DownloadRequest): String {
         val keep = RetentionPreferences(applicationContext).policy == PackageRetentionPolicy.KeepAlways

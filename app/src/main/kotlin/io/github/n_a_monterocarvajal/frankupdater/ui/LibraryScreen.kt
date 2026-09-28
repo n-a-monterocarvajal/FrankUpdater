@@ -5,9 +5,9 @@ import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -210,6 +210,8 @@ internal fun LibraryRoute(
             awaitingPermission = false
             startInstall(pending)
         }
+        // Downloads from Search or Updates land here while this screen is away; re-read on every return.
+        reloadToken += 1
         onPauseOrDispose { }
     }
 
@@ -220,8 +222,13 @@ internal fun LibraryRoute(
     }
 
 
-    Column(modifier = modifier.fillMaxSize()) {
-        UiSection(
+    // One scrolling list (S7 at 360x640 dp): a tall verified-import card must never squeeze the library away.
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 16.dp),
+    ) {
+        item { UiSection(
             title = "Biblioteca local",
             supporting = "Importa APK, APKS, APKM o XAPK mediante el selector seguro de Android.",
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
@@ -232,9 +239,9 @@ internal fun LibraryRoute(
             ) {
                 Text("Importar paquete")
             }
-        }
+        } }
 
-        if (router.preferences.mode == InstallerMode.Root || router.preferences.mode == InstallerMode.Shizuku) {
+        if (router.preferences.mode == InstallerMode.Root || router.preferences.mode == InstallerMode.Shizuku) item {
             UiSection(
                 title = "Actualizaciones por lote",
                 supporting = "Solo está disponible para Shizuku y Root, que confirman cada resultado.",
@@ -266,7 +273,7 @@ internal fun LibraryRoute(
             }
         }
 
-        if (importing) {
+        if (importing) item {
             Row(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -276,7 +283,7 @@ internal fun LibraryRoute(
                 Text("Copiando y verificando el paquete…")
             }
         }
-        errorMessage?.let { message ->
+        errorMessage?.let { message -> item {
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Importación rechazada", fontWeight = FontWeight.SemiBold)
@@ -284,8 +291,8 @@ internal fun LibraryRoute(
                     TextButton(onClick = { errorMessage = null }) { Text("Cerrar") }
                 }
             }
-        }
-        selected?.let { prepared ->
+        } }
+        selected?.let { prepared -> item {
             VerifiedImportCard(
                 prepared = prepared,
                 retained = selectedRetained,
@@ -313,51 +320,43 @@ internal fun LibraryRoute(
                     installMessage = null
                 },
             )
-        }
+        } }
 
-        if (entries.isEmpty() && selected == null && !importing) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Todavía no hay paquetes conservados.")
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(entries, key = PackageLibraryEntry::id) { entry ->
-                    RetainedPackageCard(
-                        entry = entry,
-                        enabled = !installing && !importing,
-                        onReinstall = {
-                            scope.launch {
-                                importing = true
-                                errorMessage = null
-                                try {
-                                    selected?.close()
-                                    selected = pipeline.prepare(entry)
-                                    selectedRetained = true
-                                    retentionDecisionNeeded = false
-                                    installMessage = null
-                                    // One step from the retained card (F-35): install right after re-verifying.
-                                    selected?.let { startInstall(it) }
-                                } catch (error: Exception) {
-                                    errorMessage = error.message
-                                } finally {
-                                    importing = false
-                                }
-                            }
-                        },
-                        onShare = { shareEntry(context, entry) },
-                        onDelete = {
-                            scope.launch {
-                                val deleted = withContext(Dispatchers.IO) { library.delete(entry) }
-                                if (deleted) reloadToken += 1
-                                else errorMessage = "No se pudo eliminar el paquete conservado."
-                            }
-                        },
-                    )
-                }
-            }
+        if (entries.isEmpty() && selected == null && !importing) item {
+            Text("Todavía no hay paquetes conservados.", Modifier.padding(horizontal = 20.dp, vertical = 24.dp))
+        }
+        items(entries, key = PackageLibraryEntry::id) { entry ->
+            RetainedPackageCard(
+                entry = entry,
+                enabled = !installing && !importing,
+                onReinstall = {
+                    scope.launch {
+                        importing = true
+                        errorMessage = null
+                        try {
+                            selected?.close()
+                            selected = pipeline.prepare(entry)
+                            selectedRetained = true
+                            retentionDecisionNeeded = false
+                            installMessage = null
+                            // One step from the retained card (F-35): install right after re-verifying.
+                            selected?.let { startInstall(it) }
+                        } catch (error: Exception) {
+                            errorMessage = error.message
+                        } finally {
+                            importing = false
+                        }
+                    }
+                },
+                onShare = { shareEntry(context, entry) },
+                onDelete = {
+                    scope.launch {
+                        val deleted = withContext(Dispatchers.IO) { library.delete(entry) }
+                        if (deleted) reloadToken += 1
+                        else errorMessage = "No se pudo eliminar el paquete conservado."
+                    }
+                },
+            )
         }
     }
 }
@@ -477,8 +476,10 @@ private fun RetainedPackageCard(
                 "${entry.format.name} · ${entry.apkCount} APK · ${formatBytes(entry.sizeBytes)}",
                 style = MaterialTheme.typography.bodySmall,
             )
-            Row(
+            // FlowRow wraps on narrow screens with large fonts; a Row squeezed "Eliminar" into one letter per line.
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(top = 10.dp),
             ) {
                 // Label from the installed version read now, so it stays right after installs and uninstalls.

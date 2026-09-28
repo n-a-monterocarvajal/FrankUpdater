@@ -20,21 +20,26 @@ internal class PlayDownload(
         .connectTimeout(25, TimeUnit.SECONDS).readTimeout(25, TimeUnit.SECONDS)
         .followRedirects(false).followSslRedirects(false).build(),
 ) {
-    fun download(files: List<PlayFile>, directory: File): File {
+    /** [onProgress] reports bytes across all files, resumed ones included, against their total size. */
+    fun download(files: List<PlayFile>, directory: File, onProgress: (bytes: Long, total: Long) -> Unit = { _, _ -> }): File {
         PlayProvider.validateDelivery(files)
         require(files.sumOf { it.size } <= 3_221_225_472L) { "La descarga supera el límite de tamaño." }
         check(directory.isDirectory || directory.mkdirs())
         check(directory.usableSpace >= files.sumOf { it.size } * 2 + 67_108_864L) {
             "No hay espacio suficiente para preparar el paquete."
         }
+        val total = files.sumOf { it.size }
+        var done = 0L
         val payloads = files.map { remote ->
             val target = File(directory, "${remote.sha256.lowercase()}.apk")
             if (target.length() != remote.size || !target.sha256().equals(remote.sha256, true)) {
                 val partial = File(directory, "${remote.sha256.lowercase()}.part")
-                transfer(remote, partial)
+                transfer(remote, partial) { written -> onProgress(done + written, total) }
                 check(!target.exists() || target.delete())
                 check(partial.renameTo(target)) { "No se pudo finalizar la descarga." }
             }
+            done += remote.size
+            onProgress(done, total)
             remote to target
         }
         val archive = File(directory, "download.apks")
@@ -63,7 +68,7 @@ internal class PlayDownload(
         }
     }
 
-    internal fun transfer(remote: PlayFile, partial: File) {
+    internal fun transfer(remote: PlayFile, partial: File, onWritten: (Long) -> Unit = {}) {
         if (partial.length() > remote.size) check(partial.delete())
         if (partial.length() == remote.size) {
             if (partial.sha256().equals(remote.sha256, true)) return
@@ -94,6 +99,7 @@ internal class PlayDownload(
                     }
                 }
                 var written = if (append) offset else 0L
+                var shownAt = written
                 try {
                     partial.outputStream(append).use { output ->
                         response.body.byteStream().use { input ->
@@ -105,6 +111,8 @@ internal class PlayDownload(
                                 written += count
                                 require(written <= remote.size) { "La descarga supera el tamaño anunciado." }
                                 output.write(buffer, 0, count)
+                                // One update per 256 KiB is enough for a smooth bar.
+                                if (written - shownAt >= 262_144) { shownAt = written; onWritten(written) }
                             }
                         }
                     }

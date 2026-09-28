@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,6 +28,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import android.content.Intent
@@ -35,21 +41,17 @@ import io.github.n_a_monterocarvajal.frankupdater.compatibility.CatalogEntry
 import io.github.n_a_monterocarvajal.frankupdater.compatibility.VersionCatalog
 import io.github.n_a_monterocarvajal.frankupdater.device.AndroidGenericDeviceProfileProvider
 import io.github.n_a_monterocarvajal.frankupdater.model.GenericDeviceProfile
+import io.github.n_a_monterocarvajal.frankupdater.model.PackageType
 import io.github.n_a_monterocarvajal.frankupdater.play.playCatalogEntry
 import io.github.n_a_monterocarvajal.frankupdater.play.DeliveryExpiredException
-import io.github.n_a_monterocarvajal.frankupdater.play.PlayDownload
-import io.github.n_a_monterocarvajal.frankupdater.play.PlayHttpClient
-import io.github.n_a_monterocarvajal.frankupdater.play.PlayProvider
 import io.github.n_a_monterocarvajal.frankupdater.play.PlayCredentialStore
 import io.github.n_a_monterocarvajal.frankupdater.play.PlayCredentials
-import io.github.n_a_monterocarvajal.frankupdater.play.playDeviceProperties
+import io.github.n_a_monterocarvajal.frankupdater.play.PlaySession
 import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackageLibrary
 import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackagePipeline
-import io.github.n_a_monterocarvajal.frankupdater.verification.catalogEntry
-import io.github.n_a_monterocarvajal.frankupdater.compatibility.ReleaseChannel
 import io.github.n_a_monterocarvajal.frankupdater.model.Source
-import java.io.File
-import java.util.Locale
+import io.github.n_a_monterocarvajal.frankupdater.updates.DownloadRequest
+import io.github.n_a_monterocarvajal.frankupdater.updates.PackageDownloads
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -57,6 +59,8 @@ import kotlinx.coroutines.runInterruptible
 
 // Survives tab switches together with the Search state in WebSourcesScreen.
 private val searchCatalogEntries = mutableStateOf<List<CatalogEntry>>(emptyList())
+// Scroll position too: coming back from another tab lands on the open version card and its download steps.
+private val searchListState = LazyListState()
 
 @Composable
 internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibrary,
@@ -70,8 +74,8 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
     var endpoint by rememberSaveable { mutableStateOf(preferences.getString("anonymous_server", "").orEmpty()) }
     var serverUserAgent by rememberSaveable { mutableStateOf(preferences.getString("anonymous_user_agent", "").orEmpty()) }
     var query by rememberSaveable { mutableStateOf("") }
-    var version by rememberSaveable { mutableStateOf("") }
-    var provider by remember { mutableStateOf<PlayProvider?>(null) }
+    // Process-wide session: it survives tab switches and the download worker uses it too.
+    var provider by PlaySession.provider
     var results by remember { mutableStateOf<List<App>>(emptyList()) }
     var selected by remember { mutableStateOf<App?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -83,8 +87,13 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
         value = runInterruptible(Dispatchers.IO) { AndroidGenericDeviceProfileProvider(context).getDeviceProfile() }
     }
     val scope = rememberCoroutineScope()
+    val listState = searchListState
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusSink = remember { FocusRequester() }
 
     fun act(action: suspend () -> Unit) {
+        // Park focus off the text fields (see WebSourcesCard.act): clearFocus refocuses the first field on Android 8.
+        keyboard?.hide(); runCatching { focusSink.requestFocus() }
         scope.launch {
             busy = true
             message = ""
@@ -106,6 +115,7 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
     }
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp).testTag("source-list"),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -118,16 +128,12 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                         (it.artifact.packageName to it.artifact.source) in refreshed
                     } + incoming.distinct()
                 },
-                onVerified = { catalogEntries = (catalogEntries + it).distinct() },
-                playConnected = provider != null && !busy,
-                onPlayVersion = { packageName, code ->
-                    act {
-                        selected = requireNotNull(provider).details(packageName)
-                        version = code.toString()
-                    }
-                })
+                onVerified = { catalogEntries = (catalogEntries + it).distinct() })
         }
-        item { Text("Google Play", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp)) }
+        item {
+            Text("Google Play", style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(top = 16.dp).focusRequester(focusSink).focusable())
+        }
         item {
             UiSection(
                 title = if (provider == null) "Conectar Google Play" else "Google Play conectado",
@@ -138,15 +144,13 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                     Text("Cuenta personal", style = MaterialTheme.typography.titleMedium)
                     Text("Usa un correo y AAS token de un flujo compatible con Aurora. La contraseña no se guarda.")
                     OutlinedTextField(email, { email = it }, label = { Text("Correo de Google") },
-                        singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+                        singleLine = true, readOnly = busy, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(aasToken, { aasToken = it }, label = { Text("AAS token") },
-                        singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+                        singleLine = true, readOnly = busy, modifier = Modifier.fillMaxWidth())
                     Button(enabled = !busy && email.contains('@') && aasToken.isNotBlank(), onClick = {
                         act {
-                            val properties = runInterruptible(Dispatchers.IO) { playDeviceProperties(context) }
                             val credentials = PlayCredentials(email.trim(), aasToken.trim())
-                            provider = PlayProvider.personal(credentials, properties, Locale.getDefault())
-                            credentialStore.save(credentials)
+                            PlaySession.connectPersonal(context, credentials)
                             savedPersonal = credentials
                             message = "Cuenta personal conectada."
                         }
@@ -163,19 +167,15 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                         "con ese servidor y Google para obtener aplicaciones adecuadas. No necesitas una cuenta personal.")
                     OutlinedTextField(endpoint, { endpoint = it }, label = { Text("Dirección HTTPS del servidor") },
                         keyboardOptions = literalKeyboard(androidx.compose.ui.text.input.KeyboardType.Uri),
-                        singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+                        singleLine = true, readOnly = busy, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(serverUserAgent, { serverUserAgent = it.take(256) },
                         label = { Text("User-Agent (opcional)") },
                         supportingText = { Text("Solo si el servidor exige uno concreto.") },
                         keyboardOptions = literalKeyboard(androidx.compose.ui.text.input.KeyboardType.Ascii),
-                        singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+                        singleLine = true, readOnly = busy, modifier = Modifier.fillMaxWidth())
                     Button(enabled = !busy && endpoint.isNotBlank(), onClick = {
                         act {
-                            val properties = runInterruptible(Dispatchers.IO) { playDeviceProperties(context) }
-                            provider = PlayProvider.anonymous(endpoint, properties, Locale.getDefault(),
-                                PlayHttpClient(authUserAgent = serverUserAgent.trim().ifEmpty { null }))
-                            preferences.edit().putString("anonymous_server", endpoint.trim())
-                                .putString("anonymous_user_agent", serverUserAgent.trim()).apply()
+                            PlaySession.connectAnonymous(context, endpoint.trim(), serverUserAgent.trim().ifEmpty { null })
                             message = "Acceso anónimo conectado."
                         }
                     }) { Text("Conectar") }
@@ -183,7 +183,7 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                     if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     if (message.isNotBlank()) UiStatus(message)
                 } else {
-                    TextButton(enabled = !busy, onClick = { provider = null; results = emptyList(); selected = null }) {
+                    TextButton(enabled = !busy, onClick = { PlaySession.disconnect(context); results = emptyList(); selected = null }) {
                         Text("Desconectar")
                     }
                 }
@@ -196,7 +196,7 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                     else "Los resultados se verifican antes de guardar cualquier descarga.",
             ) {
                 OutlinedTextField(query, { query = it.take(200) }, label = { Text("Buscar aplicaciones") },
-                    enabled = !busy && provider != null, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    enabled = provider != null, readOnly = busy, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Button(enabled = !busy && provider != null && query.isNotBlank(), onClick = {
                     act {
                         results = requireNotNull(provider).search(query)
@@ -216,7 +216,6 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                             Text("Abrir en Play Store")
                         }
                         Text("Disponibilidad", style = MaterialTheme.typography.titleMedium)
-                        Text("Versión ofrecida por Play: ${app.versionName} (${app.versionCode})")
                         device?.let { profile ->
                             val selection = VersionCatalog().select(app.packageName,
                                 catalogEntries.filter { it.artifact.packageName == app.packageName }, profile)
@@ -224,44 +223,28 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                             Text("Última compatible según metadatos: ${selection.latestCompatibleVersionCode ?: "Pendiente de comprobar"}")
                             Text("El catálogo solo incluye versiones consultadas; puede haber publicaciones más recientes.")
                             // Play alone cannot say which version this device supports (F-60): hand the package to the
-                            // multi-source lookup above, the same path an update result takes.
-                            Button(enabled = !busy, onClick = { checkPackage = app.packageName }) {
+                            // multi-source lookup at the top, where every version card offers Play as one of its routes.
+                            Button(enabled = !busy, onClick = {
+                                checkPackage = app.packageName
+                                scope.launch { listState.animateScrollToItem(0) }
+                            }) {
                                 Text(if (selection.latestCompatibleVersionCode == null) "Comprobar compatibilidad en todas las fuentes"
-                                    else "Volver a comprobar en todas las fuentes")
-                            }
-                            selection.assessments.map { it.entry.artifact.versionCode }.distinct().forEach { code ->
-                                TextButton(enabled = !busy, onClick = { version = code.toString() }) {
-                                    Text("Solicitar código $code en Play")
-                                }
+                                    else "Ver versiones compatibles y descargar")
                             }
                         }
                         Text("Descripción", style = MaterialTheme.typography.titleMedium)
                         Text(app.shortDescription.ifBlank { app.description }.take(800))
                         HorizontalDivider()
-                        Text("Descarga verificada", style = MaterialTheme.typography.titleMedium)
-                        Text("La identidad y la firma se comprobarán al descargar. Android confirmará si puede instalarse. " +
-                            "Esta versión no representa necesariamente la última compatible.")
-                        OutlinedTextField(version, { version = it.filter(Char::isDigit).take(19) },
-                            label = { Text("Código de versión (opcional)") }, enabled = !busy,
-                            singleLine = true, modifier = Modifier.fillMaxWidth())
-                        val requested = if (version.isBlank()) app.versionCode else version.toLongOrNull()
-                        Button(enabled = !busy && app.isFree && requested != null && requested > 0, onClick = {
-                            act {
-                                val files = requireNotNull(provider).delivery(app, requireNotNull(requested))
-                                val directory = File(context.cacheDir, "play-download/${app.packageName}-$requested")
-                                val archive = runInterruptible(Dispatchers.IO) { PlayDownload().download(files, directory) }
-                                pipeline.importPlayDownload(archive, app.packageName, requested).use { prepared ->
-                                    runInterruptible(Dispatchers.IO) { library.retain(prepared) }
-                                    val verifiedEntry = runInterruptible(Dispatchers.IO) {
-                                        prepared.verified.catalogEntry(Source.GooglePlay,
-                                            "https://play.google.com/store/apps/details?id=${app.packageName}", ReleaseChannel.Unknown)
-                                    }
-                                    catalogEntries = (catalogEntries + verifiedEntry).distinct()
-                                }
-                                runInterruptible(Dispatchers.IO) { directory.deleteRecursively() }
-                                message = "Paquete verificado y guardado. Abre Biblioteca para instalarlo."
-                            }
-                        }) { Text("Descargar a biblioteca") }
+                        Text("Versión ofrecida por Play", style = MaterialTheme.typography.titleMedium)
+                        Text("${app.versionName} (código ${app.versionCode}). Play la elige para el perfil de dispositivo " +
+                            "de la sesión; puede no ser la última compatible. La identidad y la firma se comprueban al descargar.")
+                        fun offered(install: Boolean) = PackageDownloads.enqueue(context, DownloadRequest(app.packageName,
+                            app.versionCode.toLong(), Source.GooglePlay, PackageType.SplitApkSet,
+                            "https://play.google.com/store/apps/details?id=${app.packageName}", install = install))
+                        OutlinedButton(enabled = !busy && app.isFree && app.versionCode > 0, onClick = { offered(true) }) {
+                            Text("Descargar e instalar ${app.versionName}")
+                        }
+                        DownloadSteps(app.packageName, app.versionCode.toLong(), onRetry = { _, install -> offered(install) })
                         if (!app.isFree) Text("El acceso anónimo no admite compras.")
                 }
             }
@@ -277,7 +260,6 @@ internal fun PlayRoute(pipeline: LocalPackagePipeline, library: LocalPackageLibr
                             val details = requireNotNull(selected)
                             if (details.versionCode > 0) catalogEntries = (catalogEntries +
                                 playCatalogEntry(details.packageName, details.versionCode, details.versionName)).distinct()
-                            version = ""
                         }
                     }) { Text("Ver detalles") }
                 }

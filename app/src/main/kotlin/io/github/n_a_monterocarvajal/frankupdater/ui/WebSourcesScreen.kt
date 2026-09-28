@@ -19,6 +19,13 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
+import io.github.n_a_monterocarvajal.frankupdater.play.PlaySession
 import androidx.compose.ui.unit.dp
 import io.github.n_a_monterocarvajal.frankupdater.compatibility.*
 import io.github.n_a_monterocarvajal.frankupdater.model.*
@@ -29,8 +36,6 @@ import io.github.n_a_monterocarvajal.frankupdater.storage.LocalPackagePipeline
 import io.github.n_a_monterocarvajal.frankupdater.verification.VerificationExpectations
 import io.github.n_a_monterocarvajal.frankupdater.verification.catalogEntry
 import kotlinx.coroutines.*
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
 import io.github.n_a_monterocarvajal.frankupdater.updates.DownloadRequest
 import io.github.n_a_monterocarvajal.frankupdater.updates.PackageDownloads
 import io.github.n_a_monterocarvajal.frankupdater.updates.withVerifiedDownload
@@ -55,12 +60,14 @@ private object WebSearch {
     val mirrorUrl = mutableStateOf("")
     val releases = mutableStateOf<List<WebRelease>>(emptyList())
     val variants = mutableStateOf<List<MirrorVariant>>(emptyList())
-    val choice = mutableStateOf<WebChoice?>(null)
-    val code = mutableStateOf("")
+    /** The version whose download routes are open; one at a time. */
+    val selectedCode = mutableStateOf<Long?>(null)
     val busy = mutableStateOf(false)
     val job = mutableStateOf<Job?>(null)
     val progress = mutableStateOf<Pair<Long, Long>?>(null)
     val message = mutableStateOf("")
+    /** Result of an assisted download or an import, shown inside the open version card. */
+    val panelMessage = mutableStateOf("")
     val failedSources = mutableStateOf<Set<Source>>(emptySet())
     val variantDetails = mutableStateOf<Map<String, MirrorVariantDetails>>(emptyMap())
     val installedSigners = mutableStateOf<Set<String>>(emptySet())
@@ -74,17 +81,18 @@ internal fun WebSourcesCard(
     entries: List<CatalogEntry>, requestedPackage: String?, onPackageConsumed: () -> Unit,
     onEntries: (List<CatalogEntry>) -> Unit,
     onVerified: (CatalogEntry) -> Unit,
-    playConnected: Boolean, onPlayVersion: (String, Long) -> Unit,
 ) {
     val context = LocalContext.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusSink = remember { FocusRequester() }
     val scope = WebSearch.scope
     val client = WebSearch.client
     var packageName by WebSearch.packageName
     var mirrorUrl by WebSearch.mirrorUrl
     var releases by WebSearch.releases
     var variants by WebSearch.variants
-    var choice by WebSearch.choice
-    var code by WebSearch.code
+    var selectedCode by WebSearch.selectedCode
+    var panelMessage by WebSearch.panelMessage
     var busy by WebSearch.busy
     var job by WebSearch.job
     var progress by WebSearch.progress
@@ -122,49 +130,35 @@ internal fun WebSourcesCard(
         try {
             withVerifiedDownload(context, client, pipeline, selected.toRequest(expectedCode), capturedUrl, headers,
                 onProgress = { bytes, total -> progress = bytes to total },
-                onVerifying = { progress = null; message = "Descarga completa. Verificando paquete…" }) { prepared ->
+                onVerifying = { progress = null; panelMessage = "Descarga completa. Verificando paquete…" }) { prepared ->
                 val verifiedEntry = runInterruptible(Dispatchers.IO) {
                     library.retain(prepared)
                     prepared.verified.catalogEntry(selected.source, selected.url, selected.channel)
                 }
                 onVerified(verifiedEntry)
             }
-            message = "Paquete verificado y guardado en Biblioteca."
+            panelMessage = "Paquete verificado y guardado en Biblioteca."
         } finally { progress = null }
     }
 
-    // Direct downloads run in PackageDownloadWorker; mirror its progress and result here.
-    val backgroundPackage = choice?.packageName
-    LaunchedEffect(backgroundPackage) {
-        val name = backgroundPackage ?: return@LaunchedEffect
-        WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(PackageDownloads.workName(name)).collect { infos ->
-            val info = infos.lastOrNull() ?: return@collect
-            when (info.state) {
-                WorkInfo.State.RUNNING -> if (info.progress.getBoolean("verifying", false)) {
-                    progress = null; message = "Descarga completa. Verificando paquete…"
-                } else info.progress.getLong("bytes", -1).takeIf { it >= 0 }?.let { progress = it to info.progress.getLong("total", -1) }
-                WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> message = "Descarga en cola; continúa aunque cierres la app."
-                WorkInfo.State.SUCCEEDED -> { progress = null; message = info.outputData.getString("message").orEmpty() }
-                WorkInfo.State.FAILED -> { progress = null
-                    message = "No se pudo completar la descarga (${info.outputData.getString("message") ?: "error"})." }
-                WorkInfo.State.CANCELLED -> { progress = null; message = "Operación cancelada." }
-            }
-        }
-    }
-
-    fun act(source: Source, action: suspend () -> Unit) {
+    /** [inPanel]: report in the open version card (downloads, imports) instead of under the search box. */
+    fun act(source: Source, inPanel: Boolean = false, action: suspend () -> Unit) {
+        // Park focus on the title: on Android 8 a plain clearFocus hands it back to the first text field, which
+        // reopens the keyboard when the operation ends.
+        keyboard?.hide(); runCatching { focusSink.requestFocus() }
+        fun report(text: String) { if (inPanel) panelMessage = text else message = text }
         job = scope.launch {
             busy = true
-            message = ""
+            report("")
             try { action(); failedSources = failedSources - source }
-            catch (cancelled: CancellationException) { message = "Operación cancelada."; throw cancelled }
+            catch (cancelled: CancellationException) { report("Operación cancelada."); throw cancelled }
             catch (error: Exception) {
                 // Cancelling interrupts OkHttp, which surfaces as InterruptedIOException rather than cancellation.
-                if (!isActive) { message = "Operación cancelada."; return@launch }
+                if (!isActive) { report("Operación cancelada."); return@launch }
                 Log.w("FrankUpdater", "Web source operation failed", error)
                 failedSources = failedSources + source
-                message = "No se pudo completar la operación (${failureReason(error)}). Puedes continuar en la web " +
-                    "e importar el archivo; su paquete, versión y firma se comprobarán antes de conservarlo."
+                report("No se pudo completar la operación (${failureReason(error)}). Puedes continuar en la web " +
+                    "e importar el archivo; su paquete, versión y firma se comprobarán antes de conservarlo.")
             } finally { busy = false; job = null }
         }
     }
@@ -172,7 +166,7 @@ internal fun WebSourcesCard(
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         val expected = pendingImport
         pendingImport = null
-        if (uri != null && expected != null) act(expected.source) {
+        if (uri != null && expected != null) act(expected.source, inPanel = true) {
             pipeline.import(uri, VerificationExpectations(expected.packageName, requireNotNull(expected.versionCode))).use {
                 prepared ->
                 require(expected.sha256 == null || expected.sha256.equals(prepared.verified.sourceSha256, ignoreCase = true))
@@ -182,7 +176,7 @@ internal fun WebSourcesCard(
                     prepared.verified.catalogEntry(expected.source, expected.url, expected.channel)
                 })
             }
-            message = "Paquete verificado y guardado en Biblioteca."
+            panelMessage = "Paquete verificado y guardado en Biblioteca."
         }
     }
 
@@ -222,15 +216,13 @@ internal fun WebSourcesCard(
     LaunchedEffect(requestedPackage, device) {
         val requested = requestedPackage ?: return@LaunchedEffect
         if (device == null) return@LaunchedEffect
-        packageName = requested; releases = emptyList(); variants = emptyList(); choice = null; failedSources = emptySet()
+        packageName = requested; releases = emptyList(); variants = emptyList(); selectedCode = null; failedSources = emptySet()
         onPackageConsumed()
         consultPure()
     }
 
     val panel = remember { BringIntoViewRequester() }
-    LaunchedEffect(choice) { if (choice != null) { withFrameNanos { }; panel.bringIntoView() } }
-
-    fun select(value: WebChoice) { choice = value; code = value.versionCode?.toString().orEmpty() }
+    LaunchedEffect(selectedCode) { if (selectedCode != null) { withFrameNanos { }; panel.bringIntoView() } }
     fun browser(url: String, source: Source) {
         try {
             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(sourceUrl(url, source).toString())))
@@ -243,24 +235,128 @@ internal fun WebSourcesCard(
             onBrowser = { assisted = null; browser(selected.url, selected.source) },
             onDownload = { url, headers ->
                 assisted = null
-                act(selected.source) { download(selected, requireNotNull(selected.versionCode), url, headers) }
+                act(selected.source, inPanel = true) { download(selected, requireNotNull(selected.versionCode), url, headers) }
             })
     }
 
-    // Four blocks instead of one long card (F-44): search, advanced options, results, and the download panel.
+    /** One way to get a version: a web variant or Google Play (unavailable until a Play session exists). */
+    data class Route(val key: String, val source: Source, val title: String, val detail: String, val available: Boolean,
+        val status: String, val choice: WebChoice?)
+
+    /**
+     * The routes of one version as alternatives: pick one, start it, and follow its steps in the same card.
+     * Play is a route like the web sources, so its download runs in the background worker too.
+     */
+    @Composable
+    fun VersionRoutes(versionCode: Long, group: List<CatalogAssessment>) {
+        // Reads the state so the routes refresh on connect; a saved session also counts (the worker reconnects).
+        val playConnected = PlaySession.provider.value != null || PlaySession.available(context)
+        val playUrl = "https://play.google.com/store/apps/details?id=$packageName"
+        val webRoutes = group.filter {
+            it.entry.artifact.source != Source.GooglePlay && it.entry.artifact.downloadMode != DownloadMode.Unavailable
+        }.map { assessment ->
+            val artifact = assessment.entry.artifact
+            val file = artifact.artifacts.firstOrNull()
+            Route("${artifact.source}:${artifact.packageType}:${artifact.abis}", artifact.source,
+                "${artifact.source.label} · ${artifact.packageType.label}",
+                listOfNotNull(artifact.abis.ifEmpty { listOf("todas las ABI") }.joinToString(),
+                    file?.sizeBytes?.let { Formatter.formatShortFileSize(context, it) }).joinToString(" · "),
+                true, "Disponible",
+                WebChoice(packageName, versionCode, artifact.source, artifact.packageType, requireNotNull(artifact.metadataUrl),
+                    file?.uri?.takeIf { artifact.downloadMode == DownloadMode.Direct }, file?.sha256, file?.sizeBytes,
+                    assessment.entry.channel))
+        }.distinctBy { it.key }
+        val play = Route("play", Source.GooglePlay, "Google Play",
+            if (playConnected) "Play prepara los APK de este dispositivo" else "Conéctalo en la sección Google Play, más abajo",
+            playConnected, if (playConnected) "Bajo pedido" else "Sin conectar", null)
+        // Sources without this version: one line at the end, so the real alternatives fit on a small screen.
+        val (unanswered, lacking) = listOf(Source.ApkMirror, Source.ApkPure, Source.FDroid, Source.IzzyOnDroid)
+            .filter { source -> webRoutes.none { it.source == source } }
+            .partition { it in failedSources }
+        val routes = (listOf(play) + webRoutes).sortedBy { !it.available }
+        var routeKey by remember(versionCode) { mutableStateOf(routes.firstOrNull { it.available }?.key) }
+        val route = routes.firstOrNull { it.key == routeKey && it.available }
+
+        fun start(target: Route, install: Boolean) {
+            panelMessage = ""
+            routeKey = target.key
+            PackageDownloads.enqueue(context, target.choice?.toRequest(versionCode)?.copy(install = install)
+                ?: DownloadRequest(packageName, versionCode, Source.GooglePlay, PackageType.SplitApkSet, playUrl, install = install))
+        }
+
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        Text("Vías de descarga: usa una", style = MaterialTheme.typography.titleSmall)
+        routes.forEach { item ->
+            val chosen = item.key == routeKey && item.available
+            OutlinedCard(
+                border = androidx.compose.foundation.BorderStroke(if (chosen) 2.dp else 1.dp,
+                    if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier.fillMaxWidth()
+                    .selectable(chosen, enabled = item.available, role = Role.RadioButton) { routeKey = item.key },
+            ) {
+                Row(Modifier.padding(horizontal = 4.dp, vertical = 6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    RadioButton(chosen, onClick = null, enabled = item.available)
+                    Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                        Text(item.title, style = MaterialTheme.typography.titleSmall,
+                            color = if (item.available) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline)
+                        Text(item.detail, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    StatusBadge(item.status,
+                        if (item.available) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                        if (item.available) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(8.dp))
+                }
+            }
+        }
+        if (lacking.isNotEmpty()) Text("Sin este código: " + lacking.joinToString { it.label },
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (unanswered.isNotEmpty()) Text("No respondieron en la última consulta: " + unanswered.joinToString { it.label },
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        route?.let { target ->
+            Button(onClick = { start(target, true) }, modifier = Modifier.fillMaxWidth()) {
+                Text("Descargar e instalar desde ${target.source.label}")
+            }
+            TextButton(onClick = { start(target, false) }) { Text("Solo guardar en Biblioteca") }
+        }
+        DownloadSteps(packageName, versionCode,
+            onRetry = { source, install -> routes.firstOrNull { it.available && it.source == source }?.let { start(it, install) } },
+            alternatives = routes.filter { it.available }.map { it.source }.distinct())
+        DownloadProgress { job?.cancel() }
+        if (panelMessage.isNotBlank()) Text(panelMessage, style = MaterialTheme.typography.bodyMedium)
+        Text("Manual", style = MaterialTheme.typography.titleSmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            route?.choice?.let { chosen ->
+                OutlinedButton(enabled = !busy, onClick = { assisted = chosen }) { Text("Web asistida") }
+                // APKPure has no stable page per version code: say it opens the history, not "this version".
+                TextButton(onClick = { browser(chosen.url, chosen.source) }) {
+                    Text(if (chosen.source == Source.ApkPure) "Abrir historial en APKPure" else "Abrir en ${chosen.source.label}")
+                }
+            }
+            TextButton(enabled = !busy, onClick = {
+                pendingImport = route?.choice ?: WebChoice(packageName, versionCode, Source.GooglePlay,
+                    PackageType.SplitApkSet, playUrl)
+                picker.launch(arrayOf("application/vnd.android.package-archive", "application/octet-stream", "application/zip", "*/*"))
+            }) { Text("Importar archivo descargado") }
+        }
+        TextButton(onClick = { selectedCode = null }) { Text("Cerrar") }
+    }
+
+    // Three blocks (F-44): search, advanced options, and results; the download routes open inside a version card.
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Buscar apps", style = MaterialTheme.typography.titleLarge)
+            Text("Buscar apps", style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.focusRequester(focusSink).focusable())
             Text(
                 "Por nombre o por paquete. Se consultan APKPure, APKMirror, F-Droid e IzzyOnDroid, sin iniciar sesión.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             OutlinedTextField(packageName, {
-                packageName = it.take(255); releases = emptyList(); variants = emptyList(); choice = null; failedSources = emptySet()
+                packageName = it.take(255); releases = emptyList(); variants = emptyList(); selectedCode = null; failedSources = emptySet()
                 nameMatches = emptyList()
-            }, label = { Text("Nombre de app o paquete") }, singleLine = true, enabled = !busy,
+            }, label = { Text("Nombre de app o paquete") }, singleLine = true, readOnly = busy,
                 keyboardOptions = literalKeyboard(KeyboardType.Ascii),
                 modifier = Modifier.fillMaxWidth())
             // Name search: installed apps first, then APKMirror for apps that are not installed (D-01).
@@ -303,6 +399,9 @@ internal fun WebSourcesCard(
             if (isPackage) Button(enabled = !busy && device != null, onClick = ::consultPure) {
                 Text("Consultar fuentes")
             }
+            // Lookup status next to the button that started it, not at the end of the results.
+            if (busy && selectedCode == null) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodyMedium)
         }
     }
     Card(Modifier.fillMaxWidth()) {
@@ -315,8 +414,8 @@ internal fun WebSourcesCard(
                     color = MaterialTheme.colorScheme.primary)
             }
             if (moreOptions) {
-            OutlinedTextField(mirrorUrl, { mirrorUrl = it.take(2048); releases = emptyList(); variants = emptyList(); choice = null },
-                label = { Text("Página de aplicación o release en APKMirror") }, singleLine = true, enabled = !busy,
+            OutlinedTextField(mirrorUrl, { mirrorUrl = it.take(2048); releases = emptyList(); variants = emptyList(); selectedCode = null },
+                label = { Text("Página de aplicación o release en APKMirror") }, singleLine = true, readOnly = busy,
                 keyboardOptions = literalKeyboard(KeyboardType.Uri),
                 modifier = Modifier.fillMaxWidth())
             Button(enabled = !busy && packageName.isNotBlank() && mirrorUrl.isNotBlank(), onClick = {
@@ -385,41 +484,39 @@ internal fun WebSourcesCard(
                 val rows = if (showIncompatible) compatible + incompatible else compatible
                 val installed = installedVersion
                 // The version to pick: newest compatible, allowed channel, above the installed one.
-                val recommended = rows.firstOrNull { row ->
-                    row.incompatibilities.isEmpty() && row.channelAllowed &&
-                        row.entry.artifact.versionCode == selection.latestCompatibleVersionCode &&
-                        (installed == null || row.entry.artifact.versionCode > installed)
-                }
-                rows.take(shown).forEach { assessment ->
-                    val artifact = assessment.entry.artifact
-                    val isRecommended = assessment === recommended
+                val recommendedCode = selection.latestCompatibleVersionCode?.takeIf { installed == null || it > installed }
+                // One card per version code; its variants and Google Play are the routes inside it, not separate rows.
+                val versions = rows.groupBy { it.entry.artifact.versionCode }.toList()
+                versions.take(shown).forEach { (versionCode, group) ->
+                    val first = group.first()
+                    val artifact = first.entry.artifact
+                    val isRecommended = versionCode == recommendedCode && first.incompatibilities.isEmpty() && first.channelAllowed
+                    val isOpen = selectedCode == versionCode
                     val signer = when {
                         installedSigners.isEmpty() -> null
-                        artifact.signerDigests.any(installedSigners::contains) -> true
+                        group.any { it.entry.artifact.signerDigests.any(installedSigners::contains) } -> true
                         else -> false
                     }
                     OutlinedCard(
                         colors = if (isRecommended) CardDefaults.outlinedCardColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer) else CardDefaults.outlinedCardColors(),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().then(if (isOpen) Modifier.bringIntoViewRequester(panel) else Modifier),
                     ) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(artifact.versionName ?: artifact.versionCode.toString(),
-                                        style = MaterialTheme.typography.titleMedium)
-                                    Text("código ${artifact.versionCode} · ${artifact.source.label}",
+                                    Text(artifact.versionName ?: versionCode.toString(), style = MaterialTheme.typography.titleMedium)
+                                    Text("código $versionCode · " + group.flatMap { it.entry.artifact.abis }.distinct()
+                                        .ifEmpty { listOf("todas las ABI") }.joinToString(),
                                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 if (isRecommended) StatusBadge("Recomendada", MaterialTheme.colorScheme.primary,
                                     MaterialTheme.colorScheme.onPrimary)
                             }
-                            Text("${artifact.abis.ifEmpty { listOf("todas las ABI") }.joinToString()} · ${artifact.packageType.label}",
-                                style = MaterialTheme.typography.bodyMedium)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 val neutral = MaterialTheme.colorScheme.surfaceVariant
                                 val onNeutral = MaterialTheme.colorScheme.onSurfaceVariant
-                                StatusBadge(when (assessment.entry.channel) {
+                                StatusBadge(when (first.entry.channel) {
                                     ReleaseChannel.Preview -> "Preliminar"
                                     ReleaseChannel.Stable -> "Estable"
                                     ReleaseChannel.Unknown -> "Canal sin confirmar"
@@ -431,71 +528,33 @@ internal fun WebSourcesCard(
                                     null -> {}
                                 }
                                 when {
-                                    assessment.incompatibilities.isNotEmpty() -> StatusBadge(
-                                        "No compatible: " + assessment.incompatibilities.joinToString { it.label },
+                                    first.incompatibilities.isNotEmpty() -> StatusBadge(
+                                        "No compatible: " + first.incompatibilities.joinToString { it.label },
                                         MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
-                                    installed != null && artifact.versionCode < installed ->
+                                    installed != null && versionCode < installed ->
                                         StatusBadge("Inferior a la instalada", neutral, onNeutral)
-                                    installed != null && artifact.versionCode == installed -> StatusBadge("Instalada",
+                                    installed != null && versionCode == installed -> StatusBadge("Instalada",
                                         MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
                                 }
                             }
-                            // Android refuses downgrades and verification rejects them, so only newer versions get actions.
-                            val actionable = assessment.incompatibilities.isEmpty() && assessment.channelAllowed &&
-                                (installed == null || artifact.versionCode > installed)
-                            if (actionable) Row(Modifier.align(androidx.compose.ui.Alignment.End),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (playConnected) TextButton(enabled = !busy, onClick = {
-                                    onPlayVersion(packageName, artifact.versionCode)
-                                }) { Text("Pedir a Play") }
-                                if (artifact.source != Source.GooglePlay && artifact.downloadMode != DownloadMode.Unavailable) {
-                                    val choose = {
-                                        select(WebChoice(packageName, artifact.versionCode, artifact.source, artifact.packageType,
-                                            requireNotNull(artifact.metadataUrl),
-                                            artifact.artifacts.firstOrNull()?.uri?.takeIf { artifact.downloadMode == DownloadMode.Direct },
-                                            artifact.artifacts.firstOrNull()?.sha256, artifact.artifacts.firstOrNull()?.sizeBytes,
-                                            assessment.entry.channel))
-                                    }
-                                    if (isRecommended) Button(enabled = !busy, onClick = choose) { Text("Elegir") }
-                                    else OutlinedButton(enabled = !busy, onClick = choose) { Text("Elegir") }
-                                }
+                            // Android refuses downgrades and verification rejects them, so only newer versions get routes.
+                            val actionable = first.incompatibilities.isEmpty() && first.channelAllowed &&
+                                (installed == null || versionCode > installed)
+                            if (actionable && !isOpen) {
+                                val choose = { selectedCode = versionCode; panelMessage = "" }
+                                if (isRecommended) Button(onClick = choose) { Text("Elegir esta versión") }
+                                else OutlinedButton(onClick = choose) { Text("Elegir esta versión") }
                             }
+                            if (actionable && isOpen) VersionRoutes(versionCode, group)
                         }
                     }
                 }
-                if (rows.size > shown) TextButton(onClick = { shown += 20 }) { Text("Mostrar más versiones") }
+                if (versions.size > shown) TextButton(onClick = { shown += 20 }) { Text("Mostrar más versiones") }
                 if (incompatible.isNotEmpty()) TextButton(onClick = { showIncompatible = !showIncompatible }) {
                     Text(if (showIncompatible) "Ocultar las no compatibles" else "Mostrar ${incompatible.size} no compatibles")
                 }
             }
     }
-    choice?.let { selected -> Card(Modifier.fillMaxWidth().bringIntoViewRequester(panel)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Descargar o importar", style = MaterialTheme.typography.titleMedium)
-                Text("Selección: ${selected.packageName} · ${selected.source.label} · ${selected.type.label}", style = MaterialTheme.typography.bodyMedium)
-                OutlinedTextField(code, { code = it.filter(Char::isDigit).take(19) },
-                    label = { Text("Código de versión que debe tener el archivo") }, singleLine = true,
-                    enabled = !busy && selected.versionCode == null, modifier = Modifier.fillMaxWidth())
-                val expectedCode = code.toLongOrNull()?.takeIf { it > 0 }
-                Button(enabled = !busy && expectedCode != null, onClick = {
-                    act(selected.source) {
-                        PackageDownloads.enqueue(context, selected.toRequest(requireNotNull(expectedCode)))
-                        message = "Descarga iniciada; continúa aunque cierres la app."
-                    }
-                }) { Text("Descargar y verificar") }
-                DownloadProgress { job?.cancel(); PackageDownloads.cancel(context, selected.packageName) }
-                Button(enabled = !busy && expectedCode != null, onClick = {
-                    assisted = selected.copy(versionCode = expectedCode)
-                }) { Text("Continuar en web asistida") }
-                TextButton(enabled = !busy, onClick = { browser(selected.url, selected.source) }) { Text("Continuar en navegador") }
-                Button(enabled = !busy && expectedCode != null, onClick = {
-                    pendingImport = selected.copy(versionCode = expectedCode)
-                    picker.launch(arrayOf("application/vnd.android.package-archive", "application/octet-stream", "application/zip", "*/*"))
-                }) { Text("Seleccionar archivo descargado") }
-        }
-    } }
-    if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-    if (message.isNotBlank()) Text(message)
     }
 }
 
